@@ -1,0 +1,25 @@
+{
+  "name": "cloud_db",
+  "author": {
+    "name": "Anthony Plopper",
+    "email": "anthony@anthonyplopper.com",
+    "url": "http://anthonyplopper.com"
+  },
+  "description": "For easy interaction with, creation of, and querying of a database.",
+  "version": "0.0.1",
+  "main": "./index",
+  "engines": {
+    "node": "*"
+  },
+  "readmeFilename": "Readme.md",
+  "dependencies": {
+    "underscore": "*",
+    "mysql": "*"
+  },
+  "readme": "**Create functions**\n.create( args )\n\n**Get functions**\n.get() // all entries in table\n.get( ID ) // single entry by ID\n.get( args ) // all entries that match\n\n.getOne( args ) // the first of all entries that match\n\n**Update functions**\n.update( ID, args ); // update one object with the arguments\n.update( args ); // update one object with ID args.id\n.update( getArgs, args ); // update the objects matching first args with second args\n\n**Delete functions**\n.delete( ID ) // just row with that id\n.delete( args ) // all items that match. If object has ID, then that object is deleted\n",
+  "_id": "cloud_db@0.0.1",
+  "dist": {
+    "shasum": "eb1799396c4bb3e25c0bf5a85fe3b45bd5e841b1"
+  },
+  "_from": "node_modules/cloud_db"
+}
