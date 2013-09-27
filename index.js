@@ -66,12 +66,41 @@ CloudDb.prototype.query = function( query, callback ){
 }
 
 /* ==== CRUD ============================================= */
+
 CloudDb.prototype.create = function( tableName, args, callback ){
 	var table = this.table( tableName );
 	if ( ! table ){
 		return;
 	}
-	table.create( args, callback ); 
+	table.create.apply( table, Array.prototype.slice.call(arguments, 1) );
+}
+CloudDb.prototype.get = function( tableName, args, callback ){
+	var table = this.table( tableName );
+	if ( ! table ){
+		return;
+	}
+	table.get.apply( table, Array.prototype.slice.call(arguments, 1) );
+}
+CloudDb.prototype.getOne = function( tableName, args, callback ){
+	var table = this.table( tableName );
+	if ( ! table ){
+		return;
+	}
+	table.getOne.apply( table, Array.prototype.slice.call(arguments, 1) );
+}
+CloudDb.prototype.update = function( tableName, args, callback ){
+	var table = this.table( tableName );
+	if ( ! table ){
+		return;
+	}
+	table.update.apply( table, Array.prototype.slice.call(arguments, 1) );
+}
+CloudDb.prototype.delete = function( tableName, args, callback ){
+	var table = this.table( tableName );
+	if ( ! table ){
+		return;
+	}
+	table.delete.apply( table, Array.prototype.slice.call(arguments, 1) );
 }
 
 /* ==== enable INHERITANCE ============================================= */

@@ -288,14 +288,15 @@ Table.prototype.update = function( args1, args2, next ){
 	query += select_terms.join( ', ' ) + ' ' + "\r\n";
 	query += this._getQueryWhere( whereArgs );
 	var that = this;
-	console.log( query );
 	this.query( query, function( results ){
 		if ( ! results ){
 			this.log( this.name + '.update() failed for some reason' );
 			next( false ); 
 			return;
 		} else if ( results.affectedRows ){
-			next( that.get( whereArgs ));
+			that.get( whereArgs, function( updatedObject ){
+				next( updatedObject );
+			});
 		}
 	});
 
