@@ -31,6 +31,7 @@ db.connect( function(){
 ### CRUD
 **CRUD a table, way 1**
 
+```js
 // get a table
 var userTable = db.table( 'User' );
 
