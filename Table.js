@@ -1,8 +1,11 @@
 var _ = require( 'underscore' );
+var validator = require( './validator' );
+
 var noop = function(){}; // do nothing.
 var Table = function( connection, options ){
 	this._db = connection; 
 	this._log = [];
+	this.validator = validator; 
 	this.logging = true;
 	this.constraints = {};
 	_.extend( this, options );
@@ -30,7 +33,15 @@ Table.prototype._prepareArgs = function( args ){
 	}
 	return results;
 }
-
+Table.prototype.validate = function( toSave ){
+	var validation = validator.checkAgainstTable( toSave, this.getFields() );
+	if ( validation.passed ){
+		return validation.toSave ; 
+	} else {
+		this.log( validation.errors ); 
+		return false;
+	}
+}
 /* ==== CREATE ============================================= */
 Table.prototype.create = function( args, next ){
 	if ( ! args ){
@@ -39,6 +50,12 @@ Table.prototype.create = function( args, next ){
 	}
 
 	next = next || noop;
+
+	args = this.validate( args );
+	if ( ! args ){
+		this.log( 'The values did not pass the validation requirements, so nothing was created', 'Notice' )
+		return; 
+	}
 
 	var col_names = [];
 	var col_values = []; 
@@ -190,7 +207,7 @@ Table.prototype._getQueryWhere = function( args ){
 					select_term = '`' + col_name + '` = "' + col_value + '"'; 
 				// if set to empty string, false, or null
 				} else {
-					select_term = '`' + col_name + '` = "' + col_value + '" OR `' + $col_name + '` IS NULL' ;
+					select_term = '`' + col_name + '` = "' + col_value + '" OR `' + col_name + '` IS NULL' ;
 				}
 		}
 		select_terms.push( select_term ); 
@@ -273,7 +290,12 @@ Table.prototype.update = function( args1, args2, next ){
 	}
 
 	next = next || noop;
-
+	
+	updateArgs = this.validate( updateArgs );
+	if ( ! updateArgs ){
+		this.log( 'The values did not pass the validation requirements, and weren\'t saved', 'Notice' )
+		return; 
+	}
 	var select_terms = []; 
 	_.each( updateArgs, function( col_value, col_name ){
 		if( _.isString( col_value) ){

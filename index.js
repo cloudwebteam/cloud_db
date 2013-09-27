@@ -1,12 +1,15 @@
 var mysql = require( 'mysql' );
 var _ = require( 'underscore' );
 var Table = require( './Table');
+var validator = require( './validator' );
+
 function CloudDb(){
 	this._lastQuery = false;
 	this._lastQueryArgs = false;
 	this._connectionInfo = {}; 
 	this._connection = false;
 	this._tables = {};
+	this.validation = validator; 
 }
 CloudDb.prototype.addTable = function( tableSpec ){
 	this._tables[ tableSpec.name ] = new Table( this, tableSpec ); 
