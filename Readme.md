@@ -29,7 +29,7 @@ db.connect( function(){
 ```
 
 ### CRUD
-**CRUD a table, way 1**
+**Way 1**
 
 ```js
 // get a table
@@ -41,9 +41,9 @@ userTable.get( 5, function( results ){
 });
 ```
 
-**CRUD a table, way 2**
+**Way 2**
 
-*same as above, except table name is first argument, and all the other arguments are shifted to accomodate
+*same as above, except table name is first argument, and all the other arguments are shifted to accomodate*
 
 ```js
 db.get( 'User', 5, function( results ){
