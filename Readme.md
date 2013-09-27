@@ -4,7 +4,7 @@ Cloud DB
 Setup
 -------
 ### Configure connection
-*uses [node-mysql](https://github.com/felixge/node-mysql) for its mysql connection, and accepts all the same options.*
+*Uses [node-mysql](https://github.com/felixge/node-mysql) for its mysql connection, and accepts all the same options.*
 
 ```js 
 db.use({
