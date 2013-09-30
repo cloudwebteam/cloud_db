@@ -193,7 +193,6 @@ function TableSync( db, tableSpec, cb ){
 
 		var that = this;
 		var colNames = _.pluck( this.spec.columns, 'name' );
-		console.log( colNames );
 		this.check( function( status ){
 
 			// create missing table
@@ -288,7 +287,7 @@ function TableSync( db, tableSpec, cb ){
 				
 			}
 						
-			console.log( status );
+			cb( 'SYNCING...', status );
 		});
 	}
 }

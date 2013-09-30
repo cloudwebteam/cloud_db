@@ -69,7 +69,7 @@ CloudDb.prototype.query = function( query, callback ){
 }
 
 /* ==== CRUD - add convenient wrapper functions ============================================= */
-var tableFunctions = [ 'getColumns', 'create', 'get', 'getOne', 'update', 'delete' ];
+var tableFunctions = [ 'sync', 'checkSync', 'getColumns', 'create', 'get', 'getOne', 'update', 'delete' ];
 for( var i = 0; i < tableFunctions.length; i++ ){
 	( function(){
 		var tableFunctionName = tableFunctions[i]; 

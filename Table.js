@@ -2,8 +2,8 @@ var _ = require( 'underscore' );
 var validator = require( './validator' );
 var TableSync = require( './TableSync' );
 var noop = function(){}; // do nothing.
-var Table = function( connection, tableSpec ){
-	this._db = connection; 
+var Table = function( db, tableSpec ){
+	this._db = db; 
 	this._log = [];
 	this._validator = validator; 
 	this.logging = true;
@@ -65,6 +65,13 @@ Table.prototype.validate = function( toSave ){
 		return false;
 	}
 }
+Table.prototype.sync = function( cb ){
+	TableSync.sync( this._db, this.spec, cb ); 
+
+}	
+Table.prototype.checkSync = function( cb  ){
+	TableSync.checkSync( this._db, this.spec, cb ); 
+}	
 /* ==== CREATE ============================================= */
 Table.prototype.create = function( args, next ){
 	if ( ! args ){
