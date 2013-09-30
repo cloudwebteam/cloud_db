@@ -1,19 +1,42 @@
 var _ = require( 'underscore' );
 var validator = require( './validator' );
-
+var TableSync = require( './TableSync' );
 var noop = function(){}; // do nothing.
-var Table = function( connection, options ){
+var Table = function( connection, tableSpec ){
 	this._db = connection; 
 	this._log = [];
-	this.validator = validator; 
+	this._validator = validator; 
 	this.logging = true;
-	this.constraints = {};
-	_.extend( this, options );
+
+	_.extend( this.spec, tableSpec );
+	this.name = this.spec.name;
 	if ( ! this.name ){
 		this.log( 'You must, at a minumum, provide a table name' );
 	}
 }
-
+Table.prototype.spec = {
+	name: '',
+	views: {
+		detail: true,
+		list: true,
+		add: true,
+		edit: true,
+	},	
+	columns: {},
+	indexes: {},
+	constraints: {},	
+}
+Table.prototype.getColumns = function( columnsToReturn ){
+	if ( _.isArray( columnsToReturn ) && columnsToReturn.length > 0 ){
+		var filtered = [];
+		for( var i = 0; i < columnsToReturn.length; i++ ){
+			filtered[ columnsToReturn[i] ] = this.spec.columns[ columnsToReturn[i] ] ;
+		}
+		return filtered ; 
+	} else {
+		return this.spec.columns ;
+	}
+}		
 /* ==== QUERY and query sanitization ============================================= */
 Table.prototype.query = function( query, next ){
 	return this._db.query( query, next );
@@ -34,7 +57,7 @@ Table.prototype._prepareArgs = function( args ){
 	return results;
 }
 Table.prototype.validate = function( toSave ){
-	var validation = validator.checkAgainstTable( toSave, this.getFields() );
+	var validation = this._validator.checkAgainstTable( toSave, this.getColumns() );
 	if ( validation.passed ){
 		return validation.toSave ; 
 	} else {
@@ -108,29 +131,6 @@ Table.prototype.get = function( args, next ){
 		}
 		next( results );
 	}); 
-
-	// if ( $result ){
-	// 	$objectName = 'DbObject'.$this->name ; 
-	// 	if ( is_numeric( $args ) ){
-	// 		if ( $objectSpec = $result->fetch_assoc( ) ){
-	// 			$object = new $objectName( $this,$objectSpec ) ;
-	// 		} else {
-	// 			$object = false; 
-	// 		}
-	// 		$output = $object ;
-	// 	} else {
-	// 		$objects = array();
-	// 		while ( $objectProps = $result->fetch_assoc( ) ){		
-	// 			$object = new $objectName( $this, $objectProps ); 			
-	// 			$objects[] = $object; 
-	// 		}
-
-	// 		$output = $objects; 		
-	// 	}		
-	// } else {
-	// 	$output = array();
-	// }	
-	// return $output ;
 	
 }
 Table.prototype.getOne = function( args, next ){	
@@ -321,17 +321,6 @@ Table.prototype.update = function( args1, args2, next ){
 			});
 		}
 	});
-
-		// if( $results && $this->db->affected_rows ){			
-		// 	return $this->get( $objectID ); 
-		// } else {
-		// 	if ( $this->db->error ){
-		// 		return false; 
-		// 	} else {
-		// 		return $this->get( $objectID );			
-		// 	}
-		// 	return false; 
-		// }
 };
 Table.prototype.delete  = function( to_delete, next ){
 	if ( ! to_delete ){
@@ -363,10 +352,6 @@ Table.prototype.delete  = function( to_delete, next ){
 	});
 }
 
-/* ==== Interacting with DbObject ============================================= */
-Table.prototype.get_fields = function(){
-	this.log('Please provide a get_fields() operation for "' + this.name + '"', 'notice' );
-}
 
 /* ==== HANDLING errors ============================================= */
 Table.prototype.log = function( message, type ){
