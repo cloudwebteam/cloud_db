@@ -23,11 +23,11 @@ CloudDb.prototype.addTables = function( tables ){
 	return this;
 }; 
 CloudDb.prototype.table = function( tableName ){
-	if ( _.has( this._tables, tableName )){
-		return this._tables[ tableName ];
-	}
-	console.log( 'Table "' + tableName+ '" has not been registered' )
-	return false;
+	if ( ! _.has( this._tables, tableName )){
+		console.log( 'Table "' + tableName+ '" has not been registered' )
+		return false;		
+	}		
+	return this._tables[ tableName ];
 }
 /* ==== CONNECTION FUNCTIONS ============================================= */
 CloudDb.prototype.use = function( connection_info ){
@@ -68,43 +68,20 @@ CloudDb.prototype.query = function( query, callback ){
 	}); 
 }
 
-/* ==== CRUD ============================================= */
+/* ==== CRUD - add convenient wrapper functions ============================================= */
+var tableFunctions = [ 'getColumns', 'create', 'get', 'getOne', 'update', 'delete' ];
+for( var i = 0; i < tableFunctions.length; i++ ){
+	( function(){
+		var tableFunctionName = tableFunctions[i]; 
+		CloudDb.prototype[ tableFunctions[i] ] = function( tableName, args, callback ){
+			var table = this.table( tableName );
+			if ( ! table ){
 
-CloudDb.prototype.create = function( tableName, args, callback ){
-	var table = this.table( tableName );
-	if ( ! table ){
-		return;
-	}
-	table.create.apply( table, Array.prototype.slice.call(arguments, 1) );
+				return;
+			}
+			return table[ tableFunctionName ].apply( table, Array.prototype.slice.call(arguments, 1) );
+		}
+	}() );
 }
-CloudDb.prototype.get = function( tableName, args, callback ){
-	var table = this.table( tableName );
-	if ( ! table ){
-		return;
-	}
-	table.get.apply( table, Array.prototype.slice.call(arguments, 1) );
-}
-CloudDb.prototype.getOne = function( tableName, args, callback ){
-	var table = this.table( tableName );
-	if ( ! table ){
-		return;
-	}
-	table.getOne.apply( table, Array.prototype.slice.call(arguments, 1) );
-}
-CloudDb.prototype.update = function( tableName, args, callback ){
-	var table = this.table( tableName );
-	if ( ! table ){
-		return;
-	}
-	table.update.apply( table, Array.prototype.slice.call(arguments, 1) );
-}
-CloudDb.prototype.delete = function( tableName, args, callback ){
-	var table = this.table( tableName );
-	if ( ! table ){
-		return;
-	}
-	table.delete.apply( table, Array.prototype.slice.call(arguments, 1) );
-}
-
 
 module.exports = new CloudDb;
