@@ -277,6 +277,9 @@ db.use({
 }).addTable( userTableSpec ).connect( function(){
 	var userTable = db.table( 'User' ); 
 
+	// if it is your first time using the table, or if the spec has changed, call 
+	userTable.sync() to update it.
+
 	// create
 	userTable.create({
 		name: 'My First User', // if not present, will trigger error and fail
@@ -287,7 +290,7 @@ db.use({
 	});
 	
 	// get
-	userTable.get( 1, funcion( userByID ){
+	userTable.get( 1, function( userByID ){
 		// yeah, we got a user by ID
 	})	
 	userTable.get({ zip: 55555 }, function( usersWithZip ){
@@ -313,7 +316,7 @@ db.use({
 	userTable.delete( 1, function( wasDeleted ){
 		// bam, user 1 gone.
 	});
-	userTable.delete({ name: 'Sarah', zip: 33333, function( wasDeleted ){
+	userTable.delete({ name: 'Sarah', zip: 33333}, function( wasDeleted ){
 		// bam, all Sarahs with zip 33333 are deleted.
 	});
 

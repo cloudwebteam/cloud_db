@@ -308,7 +308,7 @@ function getTableQuery( tableSpec ){
 	
 	var columns = [];
 	_.each( tableSpec.columns, function( col_spec, col_name ){
-		columns.push( unique + ' `' + col_name + '` ' + col_spec['db_type'] );
+		columns.push( unique + ' `' + col_spec.name + '` ' + col_spec.db.type );
 	});
 
 	query += ' ( ';
