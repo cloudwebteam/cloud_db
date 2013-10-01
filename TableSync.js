@@ -21,29 +21,8 @@ function TableSync( db, tableSpec, cb ){
 		console.log( 'SYNC: table has no columns specified' );
 		return cb( false );
 	}
-	var colsHaveDbTypes = true;
-	this.spec.columns = _.map( this.spec.columns, function( colSpec, colName ){
-		if ( ! colSpec.hasOwnProperty( 'db' ) ){
-			colSpec.db = {};
-		}		
-		colSpec.db = _.extend({ 
-			type: 'varchar(200)',
-			'default': null,
-			'null': true
-		}, colSpec.db );
 
-		if ( colSpec.hasOwnProperty( 'db_type' ) ){
-			colSpec.db.type = colSpec.db_type;
-			delete colSpec.db_type; 
-		} else if ( ! colSpec.db.hasOwnProperty( 'type') ){
-			console.log( 'SYNC: table has column \'' + colName + '\' without a database type specified. varchar(200) has been aded.')
-		}
-		colSpec.name = colName; 
-		return colSpec;
-	});
-	this.spec.columns = _.toArray( this.spec.columns );
 	var that = this;
-
 	/* ==== API ============================================= */
 	this.check = function( cb ){
 		cb = cb || noop;
@@ -194,7 +173,6 @@ function TableSync( db, tableSpec, cb ){
 		var that = this;
 		var colNames = _.pluck( this.spec.columns, 'name' );
 		this.check( function( status ){
-
 			// create missing table
 			if ( ! status.table ){
 				that.createTable( function(){
@@ -282,12 +260,22 @@ function TableSync( db, tableSpec, cb ){
 							}
 						} )
 					});
-						
+					
 				}				
 				
 			}
-						
-			cb( 'SYNCING...', status );
+			if ( 
+				status.table === true 
+				&& status.columns.added.length === 0 
+				&& status.columns.removed.length === 0 
+				&& status.columns.renamed.length === 0 
+				&& status.columns.changed.length === 0 
+			){
+				console.log( status );
+				cb( 'SYNCING...', 'Everything looks good' );
+			} else {
+				cb( 'SYNCING...', 'Changes needed', status );
+			}
 		});
 	}
 }

@@ -32,11 +32,32 @@ Table.prototype.getColumns = function( columnsToReturn ){
 		for( var i = 0; i < columnsToReturn.length; i++ ){
 			filtered[ columnsToReturn[i] ] = this.spec.columns[ columnsToReturn[i] ] ;
 		}
-		return filtered ; 
+
+		return this._formatColumnSpecs( filtered ) ; 
 	} else {
-		return this.spec.columns ;
+		return this._formatColumnSpecs( this.spec.columns );
 	}
-}		
+}	
+Table.prototype._formatColumnSpecs = function( columnsSpec ){
+	return _.toArray( _.map( columnsSpec, function( colSpec, colName ){
+		if ( ! colSpec.hasOwnProperty( 'db' ) ){
+			colSpec.db = {};
+		}		
+		colSpec.db = _.extend({ 
+			type: 'varchar(200)',
+			'default': null,
+			'null': true
+		}, colSpec.db );
+
+		if ( colSpec.hasOwnProperty( 'db_type' ) ){
+			colSpec.db.type = colSpec.db_type;
+			delete colSpec.db_type; 
+		}
+		colSpec.name = colName; 
+		return colSpec;
+	})); 	
+
+}	
 /* ==== QUERY and query sanitization ============================================= */
 Table.prototype.query = function( query, next ){
 	return this._db.query( query, next );
@@ -66,10 +87,20 @@ Table.prototype.validate = function( toSave ){
 	}
 }
 Table.prototype.sync = function( cb ){
-	TableSync.sync( this._db, this.spec, cb );
+	var syncSpec = {
+		name: this.spec.name, 
+		columns: this.getColumns(),
+		constraints: {}
+	}
+	TableSync.sync( this._db, syncSpec, cb );
 }	
 Table.prototype.checkSync = function( cb  ){
-	TableSync.checkSync( this._db, this.spec, cb ); 
+	var syncSpec = {
+		name: this.spec.name, 
+		columns: this.getColumns(),
+		constraints: {}
+	}	
+	TableSync.checkSync( this._db, syncSpec, cb ); 
 }	
 Table.prototype.addValidationType = function( type, validationFnct, defaultError ){
 	this._validator.addType( type, validationFnct, defaultError );
