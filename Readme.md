@@ -20,10 +20,11 @@ db.use({
 ```js 
 var userTableSpec = { 
 	name: 'string', // name of table in database
-	columns: {object} // an array of columns, minus ID ( detailed [below](#adding-tables) )
+	columns: {object} // an array of columns, minus ID
 };
 db.addTable( userTableSpec ); // register the table
 ```
+Detailed [below](#adding-tables)
 
 #### 3. Connect
 ```js
