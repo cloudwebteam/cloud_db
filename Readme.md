@@ -120,9 +120,10 @@ myTable.addValidationType( 'isEven', function( value ){
 ```
 
 **NOTES:** 
-	-For simple single-column validation, you may pass in a Regex, and a custom error message.
-	- The default validation types include:
-		- 'email', 'phone', 'file', 'number', 'url', 'zip'
+
+- For simple single-column validation, you may pass in a Regex, and a custom error message.
+- The default validation types include:
+	- 'email', 'phone', 'file', 'number', 'url', 'zip'
 
 
 #### Pre-save preparation
