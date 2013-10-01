@@ -90,6 +90,7 @@ Table.prototype.sync = function( cb ){
 	var syncSpec = {
 		name: this.spec.name, 
 		columns: this.getColumns(),
+		indexes: this.spec.indexes,		
 		constraints: {}
 	}
 	TableSync.sync( this._db, syncSpec, cb );
@@ -98,7 +99,8 @@ Table.prototype.checkSync = function( cb  ){
 	var syncSpec = {
 		name: this.spec.name, 
 		columns: this.getColumns(),
-		constraints: {}
+		indexes: this.spec.indexes,
+		constraints: this.spec.constraints
 	}	
 	TableSync.checkSync( this._db, syncSpec, cb ); 
 }	

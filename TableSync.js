@@ -8,6 +8,7 @@ function TableSync( db, tableSpec, cb ){
 	this.spec = {
 		name: '', 
 		columns: {}, 
+		indexes: {},
 		constraints: {}
 	}
 	_.extend( this.spec, tableSpec );
@@ -27,7 +28,7 @@ function TableSync( db, tableSpec, cb ){
 	this.check = function( cb ){
 		cb = cb || noop;
 
-		var that =this;
+		var that = this;
 		this.checkForTable( this.spec.name, function( tableExists ){
 			// if the table doesn't exist, then stop everything and create it according to spec
 			if ( ! tableExists ){
@@ -37,134 +38,11 @@ function TableSync( db, tableSpec, cb ){
 					constraints: false
 				})
 			}			
-
-			// get current columns data from DB
-			var dbColumns = [];
-			that.db.query( 'SHOW FIELDS FROM `' + that.spec.name + '`', function( results ){
-				var dbColData = results;		
-				// arrange columns from DB into agreeable format
-				_.each( dbColData, function( dbColumn, index ){
-					if( dbColumn.Field === 'ID' ) return;
-
-					dbColumns.push({
-						index: index,
-						name: dbColumn.Field,
-						type: dbColumn.Type,
-						'null': dbColumn.Null,
-						'default': dbColumn.Default
-					});
+			that.checkColumns( function( columnsStatus ){
+				that.checkIndexes( function( indexesStatus ){
+					console.log( indexesStatus ); 
 				});
-
-				// go through columns in spec and compare to DB
-				var columnsToRemove = [];
-				var columnsToAdd = [];
-				var columnsToRename = [];					
-				var columnsToChange = [];
-
-				// check if there are extra columns in DB that are not in spec -
-				columnsToRemove = _.filter( dbColumns, function( value ){
-					return ! _.findWhere( that.spec.columns, { name : value.name });
-				});
-
-				_.each( that.spec.columns, function( colSpec ){
-					var dbColumn = _.findWhere( dbColumns, { name: colSpec.name });
-					
-					// column doesn't exist
-					if ( ! dbColumn ){			
-						columnsToAdd.push( colSpec ); // change format to easily compare with toRemove array
-						return;
-					}		
-					var updateNeeded = false;		
-
-					_.each( colSpec.db, function( value, key ){
-						if ( value !== dbColumn[key] ){
-							// change in NULL is a little nuanced
-							if ( key  === 'null' ){
-								if ( value && dbColumn[key].toLowerCase() !== 'yes' ){
-									updateNeeded = true;
-								} else if( ! value && dbColumn[key].toLowerCase() !== 'no' ){
-									updateNeeded = true;
-								}
-							// change in anything isn't, and a sync is required
-							} else {
-								if ( _.isNumber( value ) && value !== +dbColumn[key] ){
-									updateNeeded = true;
-								}
-							}
-						}						
-					});
-					if ( updateNeeded ){
-						columnsToChange.push( colSpec.name );
-					}
-
-				});	
-				// check for column renaming...
-				if ( columnsToRemove.length > 0 && columnsToAdd.length > 0 ){
-					columnsToRemove = _.map( columnsToRemove, function( dbColumn ){
-						var index = dbColumns
-						var colBefore = index - 1 > 0 ? dbColumns[ index -1 ].name : 'ID'; 
-						var colAfter = dbColumns.length > ( index + 1 ) ? dbColumns[index+1].name : false;
-						return {
-							index: dbColumn.index,
-							name: dbColumn.name,							
-							type: dbColumn.type,
-							before: colBefore,
-							after: colAfter
-						}
-					}); 
-					columnsToAdd = _.map( columnsToAdd, function( colSpec ){
-
-						var colBefore = colSpec.index - 1 > 0 ? that.spec.columns[ colSpec.index -1 ].name : 'ID'; 
-						var colAfter = that.spec.columns.length > ( colSpec.index + 1 ) ? that.spec.columns[ colSpec.index + 1 ].name : false;
-						return {
-							name: colSpec.name,							
-							type: colSpec.db.type,
-							before: colBefore,
-							after: colAfter
-						}
-					});
-					columnsToAdd = _.filter( columnsToAdd, function( colToAdd ){
-						var renamed = false;
-						columnsToRemove = _.filter( columnsToRemove, function( colToRemove ){
-							if ( renamed ){
-								return true;
-							}
-							if(
-								colToAdd.after === colToRemove.after 
-								&& colToAdd.before === colToRemove.before 
-								&& colToAdd.type === colToRemove.type 
-							){
-								columnsToRename.push({
-									from: colToRemove.name,
-									to: colToAdd.name
-								});
-								renamed = true;
-								return false; 
-							}
-							return true;
-						});
-						return ! renamed;
-					});					
-				}
-				columnsToAdd = _.map( columnsToAdd, function( col ){
-					return col.name; 
-				});
-				columnsToRemove = _.map( columnsToRemove, function( col ){
-					return col.name; 
-				});
-
-				return cb({
-					table: true,
-					columns: {
-						added: columnsToAdd,
-						removed: columnsToRemove,
-						renamed: columnsToRename,
-						changed: columnsToChange,
-					},
-					constraints: false
-				});
-
-			} );
+			}); 
 		});
 	}
 	this.sync = function( cb ){
@@ -289,6 +167,233 @@ TableSync.prototype.createTable = function( cb ){
 	console.log( 'created table' + this.spec.name + ' because it did not exist.');	
 	this.db.query( getTableQuery( this.spec ), cb ); 
 }
+TableSync.prototype.checkColumns = function( cb ){
+	var that = this; 
+	// get current columns data from DB
+	var dbColumns = [];
+	that.db.query( 'SHOW FIELDS FROM `' + that.spec.name + '`', function( results ){
+		var dbColData = results;		
+		// arrange columns from DB into agreeable format
+		_.each( dbColData, function( dbColumn, index ){
+			if( dbColumn.Field === 'ID' ) return;
+
+			dbColumns.push({
+				index: index,
+				name: dbColumn.Field,
+				type: dbColumn.Type,
+				'null': dbColumn.Null,
+				'default': dbColumn.Default
+			});
+		});
+
+		// go through columns in spec and compare to DB
+		var columnsToRemove = [];
+		var columnsToAdd = [];
+		var columnsToRename = [];					
+		var columnsToChange = [];
+
+		// check if there are extra columns in DB that are not in spec -
+		columnsToRemove = _.filter( dbColumns, function( value ){
+			return ! _.findWhere( that.spec.columns, { name : value.name });
+		});
+
+		_.each( that.spec.columns, function( colSpec ){
+			var dbColumn = _.findWhere( dbColumns, { name: colSpec.name });
+			
+			// column doesn't exist
+			if ( ! dbColumn ){			
+				columnsToAdd.push( colSpec ); // change format to easily compare with toRemove array
+				return;
+			}		
+			var updateNeeded = false;		
+
+			_.each( colSpec.db, function( value, key ){
+				if ( value !== dbColumn[key] ){
+					// change in NULL is a little nuanced
+					if ( key  === 'null' ){
+						if ( value && dbColumn[key].toLowerCase() !== 'yes' ){
+							updateNeeded = true;
+						} else if( ! value && dbColumn[key].toLowerCase() !== 'no' ){
+							updateNeeded = true;
+						}
+					// change in anything isn't, and a sync is required
+					} else {
+						if ( _.isNumber( value ) && value !== +dbColumn[key] ){
+							updateNeeded = true;
+						}
+					}
+				}						
+			});
+			if ( updateNeeded ){
+				columnsToChange.push( colSpec.name );
+			}
+
+		});	
+		// check for column renaming...
+		if ( columnsToRemove.length > 0 && columnsToAdd.length > 0 ){
+			columnsToRemove = _.map( columnsToRemove, function( dbColumn ){
+				var index = dbColumns
+				var colBefore = index - 1 > 0 ? dbColumns[ index -1 ].name : 'ID'; 
+				var colAfter = dbColumns.length > ( index + 1 ) ? dbColumns[index+1].name : false;
+				return {
+					index: dbColumn.index,
+					name: dbColumn.name,							
+					type: dbColumn.type,
+					before: colBefore,
+					after: colAfter
+				}
+			}); 
+			columnsToAdd = _.map( columnsToAdd, function( colSpec ){
+
+				var colBefore = colSpec.index - 1 > 0 ? that.spec.columns[ colSpec.index -1 ].name : 'ID'; 
+				var colAfter = that.spec.columns.length > ( colSpec.index + 1 ) ? that.spec.columns[ colSpec.index + 1 ].name : false;
+				return {
+					name: colSpec.name,							
+					type: colSpec.db.type,
+					before: colBefore,
+					after: colAfter
+				}
+			});
+			columnsToAdd = _.filter( columnsToAdd, function( colToAdd ){
+				var renamed = false;
+				columnsToRemove = _.filter( columnsToRemove, function( colToRemove ){
+					if ( renamed ){
+						return true;
+					}
+					if(
+						colToAdd.after === colToRemove.after 
+						&& colToAdd.before === colToRemove.before 
+						&& colToAdd.type === colToRemove.type 
+					){
+						columnsToRename.push({
+							from: colToRemove.name,
+							to: colToAdd.name
+						});
+						renamed = true;
+						return false; 
+					}
+					return true;
+				});
+				return ! renamed;
+			});					
+		}
+		columnsToAdd = _.map( columnsToAdd, function( col ){
+			return col.name; 
+		});
+		columnsToRemove = _.map( columnsToRemove, function( col ){
+			return col.name; 
+		});
+		var columnsStatus = {};
+		_.each({
+			added: columnsToAdd,
+			removed: columnsToRemove,
+			renamed: columnsToRename,
+			changed: columnsToChange,
+		}, function( item, key ){
+			if( item.length > 0 ){
+				columnsStatus[ key ] = item;
+			}
+		});
+		if ( _.isEmpty( columnsStatus ) ){
+			return cb( true )
+		} else {
+			return cb( columnsStatus);
+		}
+		
+		return cb({
+			table: true,
+			columns: {
+				added: columnsToAdd,
+				removed: columnsToRemove,
+				renamed: columnsToRename,
+				changed: columnsToChange,
+			},
+			constraints: false
+		});
+
+	} );	
+}
+TableSync.prototype.checkIndexes = function( cb ){
+	if ( ! this.spec.indexes ){
+		return;
+	}
+	var that = this;
+	var query = 'SHOW INDEXES IN ' + this.spec.name ; 
+
+	var defaultIndex = {
+		Non_unique: 0,
+		Key_name: false,
+		Column_name: false
+	}
+	// reformat for easy comparison
+	var tableIndexes = _.map( this.spec.indexes, function( index ){
+		var formatted = _.clone( defaultIndex ); 
+		if ( ! index.unique ){
+			formatted.Non_unique = 1;
+		}
+		formatted.Key_name = index.name;
+		formatted.Column_name = index.column;
+		return formatted;
+	}); 
+	// compare with indexes currently in DB
+	this.db.query( query, function( results ){
+		var dbIndexes = results; 
+		// filter all the indexes in the spec down to the ones that aren't in the db
+		tableIndexes = _.filter( tableIndexes, function( index ){
+			var foundIndex = _.findWhere( dbIndexes, { Key_name: index.Key_name }); 
+			if( ! foundIndex ){
+				return true;
+			}
+			return false;
+		});
+
+		_.each( tableIndexes, function( index ){
+			var query = 'ALTER TABLE `' + that.spec.name + '`';
+			query += " DROP INDEX `" + index.Key_name + "`" ; 
+			that.db.query( query, function( results ){
+				console.log( results );
+				console.log( 'SYNC: Dropped index \'' + index.Key_name + '\' from table \'' + that.spec.name + '\'' );
+				var query = 'ALTER TABLE `' + that.spec.name + '`'; 
+				query += index.Non_unique !== 0 ? ' ADD UNIQUE ' : ' ADD ';
+				query += ' INDEX `' +index.Key_name+'` ( `' + index.Column_name + '` )';
+				console.log( query ); 
+
+				that.db.query( query, function( results ){
+					console.log( 'SYNC: Added index \'' + index.Key_name + '\' to \`' + that.spec.name + '.' + index.Column_name + '\'' );
+				});
+
+			});
+		});
+	});
+
+	// 	foreach( $index_types as $index_type => $indexes ){
+	// 		foreach( $indexes as $index_name => $columns ){
+	// 			$query = 'ALTER TABLE `'. $this->name .'`'; 
+	// 			$columns_name = is_array( $columns ) ? '`'. implode( '`, `', $columns ) .'`': $columns ;  
+	// 			if ( isset( $db_indexes[ $index_name ] ) ){
+	// 				$old_columns_name = is_array( $db_indexes[ $index_name ] ) ? implode( ', ', $db_indexes[ $index_name ] ) : $db_indexes[ $index_name ] ;  
+	// 				if ( $db_indexes[ $index_name ] !== $columns ){
+
+	// 					$query .= " DROP INDEX `".$index_name . "`" ; 
+	// 					$this->query( $query ); 
+	// 					$this->error( 'DB: dropped index \''. $index_name . '\' from '. $old_columns_name , 'notice' ); 					
+	// 					$query = 'ALTER TABLE `'. $this->name .'`' ; 								
+	// 					$query .= ' ADD '. $index_type . ' INDEX `'.$index_name.'` ( '.$columns_name.' )' ; 
+	// 					$this->query( $query ); 								
+	// 					$this->error( 'DB: added index \''. $index_name . '\' to '. $columns_name , 'notice' ); 												
+	// 				}
+					
+	// 			} else {
+	// 				$query .= ' ADD '. $index_type . ' INDEX `'.$index_name .'` ( '.$columns_name.' )' ; 	
+	// 				$this->query( $query ); 
+	// 				$this->error( 'DB: added '. $index_type . ' INDEX \''.$index_name .'\' to '. $this->name . ' ('. $columns_name .')', 'notice' ); 												
+										
+	// 			}
+	// 		}
+	// 	}
+	// }
+}
+
 function getTableQuery( tableSpec ){		
 	var query = '';
 	query += "CREATE TABLE `" + tableSpec.name + '`';

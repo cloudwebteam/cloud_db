@@ -278,8 +278,8 @@ db.use({
 }).addTable( userTableSpec ).connect( function(){
 	var userTable = db.table( 'User' ); 
 
-	// if it is your first time using the table, or if the spec has changed, 
-	// call userTable.sync() to update it ( or .checkSync() to see that status );
+	// if it is your first time using the table, or if the spec has changed, call 
+	userTable.sync() // to update it ( or .checkSync() to just check the status );
 
 	// create
 	userTable.create({
