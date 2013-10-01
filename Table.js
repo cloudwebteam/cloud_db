@@ -66,12 +66,18 @@ Table.prototype.validate = function( toSave ){
 	}
 }
 Table.prototype.sync = function( cb ){
-	TableSync.sync( this._db, this.spec, cb ); 
-
+	TableSync.sync( this._db, this.spec, cb );
 }	
 Table.prototype.checkSync = function( cb  ){
 	TableSync.checkSync( this._db, this.spec, cb ); 
 }	
+Table.prototype.addValidationType = function( type, validationFnct, defaultError ){
+	this._validator.addType( type, validationFnct, defaultError );
+}
+Table.prototype.onSaveValidationType = function( validationType, fnct  ){
+	this._validator.validator.onSave( validationType, fnct );
+}
+
 /* ==== CREATE ============================================= */
 Table.prototype.create = function( args, next ){
 	if ( ! args ){
