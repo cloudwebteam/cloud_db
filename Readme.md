@@ -167,7 +167,7 @@ myTable.onSaveValidationType( 'passwordConfirmation', function( value ){
 
 CRUD operations
 ----------
-All CRUD operations have been made as intuitive as possible. All possible uses are listed succintly below. Check out the [examples](#examples) section for more specifics.
+All CRUD operations have been made as intuitive as possible. All possible uses are listed succintly below. Check out the [example](#full-example) section for more specifics.
 
 **Note:** The callback has been left out for clarity, but **all accept a callback function as the last argument** 
 
@@ -175,7 +175,7 @@ You can only access the query results through the callback.
 
 #### .create()
 
-- `table.create( {args} )` // boom, add a DB entry
+- `table.create( {updateArgs} )` // boom, add a DB entry (no ID, please)
 	- returns full row from database.
 
 #### .get()
@@ -203,10 +203,10 @@ You can only access the query results through the callback.
 #### {updateArgs}
 ```js
 {
-	// KEYS: any column in the table spec, plus ID
+	// KEYS: any column in the table spec, (and the addition of the ID field)
 	// VALUES: any value 
 		// that the MySQL datatype for that row supports, 
-		// that also passes the 'validate' and 'required' spec (if provided)
+		// that also passes the 'required' and 'validate' spec (if provided)
 	id: {int},
 	col_name: {int/str/bool}, // false and null evaluate to 'NULL' in the database,
 	another_col_name: {int/str/bool},
@@ -216,8 +216,8 @@ You can only access the query results through the callback.
 #### {getArgs}
 ```js
 {
-	// KEYS: any column in the table spec, plus ID
-	// VALUES: any value. Retrieve rows must match it exactly.
+	// KEYS: any column in the table spec, (and the addition of the ID field)
+	// VALUES: any value. Retrieved rows must match it exactly.
 		// except false and null both evaluate to null.
 	id: {int},
 	col_name: {int/str/bool}, // false and null evaluate to 'NULL' in the database,
@@ -234,4 +234,89 @@ You can only access the query results through the callback.
 }
 ```
 
+Full Example
+=========
+```js
+var db = require( 'cloud_db');
+var userTableSpec = {
+	name: 'User', 
+	columns: {
+		name: {
+			db_type: 'varchar(200)',
+			required: 'You must give the user a name',
+		},
+		time_added: {
+			// example of customized db row
+			db: {
+				type: 'timestamp',
+				'default': 'CURRENT_TIMESTAMP',
+				'null': false
+			},
+		},
+		gender: {
+			db_type: 'varchar(10)',
+			// example of custom column data for generating field, etc
+			title: 'Gender',
+			description: 'Choose male or female',
+			type: 'select',
+			options: [ 'Male', 'Female']
+		}, 
+		zip: {
+			db_type: 'int(5)',
+			// example of validation with custom message
+			validate: 'zip',
+			error: 'My custom ZIP error',
+		}
+	}
+}
+db.use({
+	host: 'localhost', 
+	user: 'userName',
+	password: 'theBestPW',
+	database: 'dbName'
+}).addTable( userTableSpec ).connect( function(){
+	var userTable = db.table( 'User' ); 
+
+	// create
+	userTable.create({
+		name: 'My First User', // if not present, will trigger error and fail
+		gender: 'Male', // completely optional
+		zip: 55555 // anything not five numbers will trigger error and fail
+	}, function( newUserRow ){
+		// yeah! we added it!
+	});
+	
+	// get
+	userTable.get( 1, funcion( userByID ){
+		// yeah, we got a user by ID
+	})	
+	userTable.get({ zip: 55555 }, function( usersWithZip ){
+		// yeah, we got users by ZIP!
+	});
+
+	// update
+	userTable.update({ zip: 55555 }, { name: 'Sarah' }, function( updatedUsers ){
+		// yeah, all users with ZIP 55555 are now named Sarah!
+	});
+	userTable.update( 1, { name: 'Gerald' }, function( updatedUser ){
+		// yeah, updated row 1 to have the name Gerald.
+	}); 
+	userTable.update({ 
+		ID: 1, 
+		zip: '2222a'
+	}, function( updatedUser ){
+		// no updated user, because the zip didn't pass validation.
+		// otherwise, it would update user 1's name to Peter.
+	});	
+
+	// delete
+	userTable.delete( 1, function( wasDeleted ){
+		// bam, user 1 gone.
+	});
+	userTable.delete({ name: 'Sarah', zip: 33333, function( wasDeleted ){
+		// bam, all Sarahs with zip 33333 are deleted.
+	});
+
+});
+```
 
