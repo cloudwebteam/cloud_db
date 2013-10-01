@@ -132,13 +132,7 @@ function password_confirmation( value ){
 }
 function phone( value ){
 	var re = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
-
-	if (re.test( value )) {
-		return true;
-    	var formattedPhoneNumber = subjectString.replace(regexObj, "($1) $2-$3");
-	} else {
-    	return false;
-	}
+	return re.test( value );
 }
 function url( value ){
 	var re = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
