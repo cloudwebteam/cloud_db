@@ -85,8 +85,9 @@ Pass this dude into `.addTable({tableSpec});` to define your table
 			},
 
 			// validation options
-			required: bool/str, // if string, it IS required, and string is a custom error message.
-			validate: validation_type/regex, // see [validation options](#validation),
+			required: bool/str, // if true, it runs through the 'required' validation type, and uses that error.
+								// if string, it runs through the 'required' validation typ, and string is the custom error message.
+			validate: validation_type/regex, // see validation options,
 			error: str // if validate type is provided, this is an optional custom error given.
 
 			// other options (all optional, whatever your app needs).
@@ -105,11 +106,12 @@ Validation and pre-save preparation
 - If you want to format the data before it is saved, add pre-save preparation to the validation type.
 
 #### Validation
-`validator.addType( type, validationFnct, error )`
 
 Custom validation types can be easily added (and the defaults can be overridden). 
 
-The error is the default, and is overidden by individual columns 'error' string, if present.
+`myTable.addValidationType( type, validationFnct, error )`
+
+The error sets the default error, and will be overidden by individual columns 'error' string, if present.
 
 ```js
 myTable.addValidationType( 'isEven', function( value ){
@@ -117,15 +119,21 @@ myTable.addValidationType( 'isEven', function( value ){
 }, 'Number must be even.' );
 ```
 
-The default validation types included are:
-	- 'email', 'phone', 'file', 'number', 'url', 'zip'
- 
+**NOTES:** 
+	-For simple single-column validation, you may pass in a Regex, and a custom error message.
+	- The default validation types include:
+		- 'email', 'phone', 'file', 'number', 'url', 'zip'
+
+
 #### Pre-save preparation
 `myTable.onSaveValidationType( 'validation_type', prepFnct );`
 
 For each validation type, you can optionally specify a function to format/filter the value before it is saved into the database.
 
+#### Validation and saving examples.
+
 **Example 1: Phone**
+
 ```js
 myTable.addValidationType( 'phone', function( value ){
 	var re = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
@@ -138,6 +146,7 @@ myTable.onSaveValidationType( 'phone', function( value ){
 	return toSave; 	
 });
 ```
+
 **Example 2: Password w/ confirmation**
 
 We are assuming the password data has been submitted in this format:
@@ -155,6 +164,7 @@ myTable.onSaveValidationType( 'passwordConfirmation', function( value ){
 	return value.password;
 });
 ```
+
 CRUD operations
 ----------
 All CRUD operations have been made as intuitive as possible. All possible uses are listed succintly below. Check out the [examples](#examples) section for more specifics.
@@ -173,7 +183,7 @@ You can only access the query results through the callback.
 - `.get()` // retrieves all rows in table (returns array of rows)
 - `.get( {getArgs} )` // retrieves all entries that match the object (returns array of rows)
 - `.getOne( {getArgs} )` // retrieves the first of all entries that match (returns single row)
-- `.get( int )` // retrieves a single row by ID (returns single row)
+- `.get( ID )` // retrieves a single row by ID (returns single row)
 
 #### .update()
 
@@ -188,6 +198,20 @@ You can only access the query results through the callback.
 - `.delete( ID )` // delete row by ID
 - `.delete( {getArgs} )` // delete all rows that match the given parameters. 
 	- If object has ID, then only that row is deleted, so you can pass in a row to delete it.
+
+
+#### {updateArgs}
+```js
+{
+	// KEYS: any column in the table spec, plus ID
+	// VALUES: any value 
+		// that the MySQL datatype for that row supports, 
+		// that also passes the 'validate' and 'required' spec (if provided)
+	id: {int},
+	col_name: {int/str/bool}, // false and null evaluate to 'NULL' in the database,
+	another_col_name: {int/str/bool},
+}
+```
 
 #### {getArgs}
 ```js
@@ -210,16 +234,4 @@ You can only access the query results through the callback.
 }
 ```
 
-#### {updateArgs}
-```js
-{
-	// KEYS: any column in the table spec, plus ID
-	// VALUES: any value 
-		// that the MySQL datatype for that row supports, 
-		// that also passes the 'validate' and 'required' spec (if provided)
-	id: {int},
-	col_name: {int/str/bool}, // false and null evaluate to 'NULL' in the database,
-	another_col_name: {int/str/bool},
-}
-```
 
