@@ -31,16 +31,22 @@ function TableSync( db, tableSpec, cb ){
 		var that = this;
 		this.checkForTable( this.spec.name, function( tableExists ){
 			// if the table doesn't exist, then stop everything and create it according to spec
-			if ( ! tableExists ){
+			if ( ! tableExists ){			
 				return cb({
 					table: false,
 					columns: false,
+					indexes: false,
 					constraints: false
 				})
 			}			
 			that.checkColumns( function( columnsStatus ){
 				that.checkIndexes( function( indexesStatus ){
-					console.log( indexesStatus ); 
+					return cb({
+						table: true,
+						columns: columnsStatus,
+						indexes: indexesStatus,
+						constraints: false
+					})					
 				});
 			}); 
 		});
@@ -51,12 +57,13 @@ function TableSync( db, tableSpec, cb ){
 		var that = this;
 		var colNames = _.pluck( this.spec.columns, 'name' );
 		this.check( function( status ){
+			console.log( status );
 			// create missing table
 			if ( ! status.table ){
 				that.createTable( function(){
 					// we assume that all columns are in sync, because we created it from the spec
 				});
-			} else {
+			} else if ( status.columns !== true ) {
 				// CREATE added columns
 				if ( status.columns.added.length > 0 ){
 					_.each( status.columns.added, function( colName ){
@@ -142,12 +149,41 @@ function TableSync( db, tableSpec, cb ){
 				}				
 				
 			}
-			if ( 
-				status.table === true 
-				&& status.columns.added.length === 0 
-				&& status.columns.removed.length === 0 
-				&& status.columns.renamed.length === 0 
-				&& status.columns.changed.length === 0 
+			if ( status.indexes ){
+				_.each( status.indexes.added, function( indexKey ){
+					var index = _.findWhere( that.spec.indexes, { name: indexKey });
+					var query = 'ALTER TABLE `' + that.spec.name + '`'; 
+					query += index.hasOwnProperty( 'unique' ) && ! index.unique ? ' ADD ' : ' ADD UNIQUE ';
+					query += ' INDEX `' +indexKey+'` ( `' + index.column + '` )';
+					that.db.query( query, function( results ){
+						console.log( 'SYNC: Added index \'' + indexKey + '\' to \`' + that.spec.name + '.' + index.column + '\' because it had changed.' );
+					});
+				});				
+				_.each( status.indexes.removed, function( indexKey ){
+					var query = 'ALTER TABLE `' + that.spec.name + '`';
+					query += " DROP INDEX `" + indexKey + "`" ; 
+					that.db.query( query, function( results ){
+						console.log( 'SYNC: Dropped index \'' + indexKey + '\' from table \'' + that.spec.name + '\' because it was no longer in the spec.' );
+					});
+				}); 
+				_.each( status.indexes.changed, function( indexKey ){
+					var query = 'ALTER TABLE `' + that.spec.name + '`';
+					query += " DROP INDEX `" + indexKey + "`" ; 
+					that.db.query( query, function( results ){
+						var index = _.findWhere( that.spec.indexes, { name: indexKey });
+						var query = 'ALTER TABLE `' + that.spec.name + '`'; 
+						query += index.hasOwnProperty( 'unique' ) && ! index.unique ? ' ADD ' : ' ADD UNIQUE ';
+						query += ' INDEX `' +indexKey+'` ( `' + index.column + '` )';
+						that.db.query( query, function( results ){
+							console.log( 'SYNC: updated index \'' + indexKey + '\' on table \'' + that.spec.name + '\'' );
+						});
+					});
+				}); 		
+			}
+			var all_good = true;
+			if ( status.table !== true 
+				|| status.columns !== true 
+				|| status.indexes !== true
 			){
 				console.log( status );
 				cb( 'SYNCING...', 'Everything looks good' );
@@ -328,42 +364,62 @@ TableSync.prototype.checkIndexes = function( cb ){
 	// reformat for easy comparison
 	var tableIndexes = _.map( this.spec.indexes, function( index ){
 		var formatted = _.clone( defaultIndex ); 
-		if ( ! index.unique ){
-			formatted.Non_unique = 1;
-		}
+		formatted.Non_unique = index.hasOwnProperty('unique') && ! index.unique ? 1 : 0;
 		formatted.Key_name = index.name;
 		formatted.Column_name = index.column;
 		return formatted;
 	}); 
 	// compare with indexes currently in DB
 	this.db.query( query, function( results ){
-		var dbIndexes = results; 
+		// remove the primary index (since that is assumed and unchangeable in Cloud_DB)
+		var dbIndexes = _.reject( results, function( dbIndex ){
+			return dbIndex.Key_name === 'PRIMARY' && dbIndex.Column_name === 'ID';  
+		});
 		// filter all the indexes in the spec down to the ones that aren't in the db
-		tableIndexes = _.filter( tableIndexes, function( index ){
-			var foundIndex = _.findWhere( dbIndexes, { Key_name: index.Key_name }); 
-			if( ! foundIndex ){
-				return true;
+		var notInDb = [];
+		var differentFromDb = [];
+		tableIndexes = _.each( tableIndexes, function( tableIndex ){
+			// if it doesn't refer to an existing column
+			if ( ! _.findWhere( that.spec.columns, { name: tableIndex.Column_name })){
+				console.log( 'Attempting to add index \'' + tableIndex.Key_name + '\' to non-existent column \'' + that.spec.name + '.' + tableIndex.Column_name + '\'' );
 			}
-			return false;
+			var foundIndex = _.findWhere( dbIndexes, { Key_name: tableIndex.Key_name }); 
+			if( foundIndex ){
+
+				if ( ! _.isEqual( tableIndex, _.pick( foundIndex, 'Key_name', 'Column_name', 'Non_unique' ) ) ){
+					console.log(tableIndex, _.pick( foundIndex, _.keys( tableIndex ) ) ); 
+					differentFromDb.push( tableIndex );
+				}	
+				// remove the inspected item from dbIndexes
+				dbIndexes = _.reject( dbIndexes, function( dbIndex ){
+					return dbIndex.Key_name === tableIndex.Key_name 
+				});					
+				
+			} else {
+				notInDb.push( tableIndex );
+			}
+					
 		});
 
-		_.each( tableIndexes, function( index ){
-			var query = 'ALTER TABLE `' + that.spec.name + '`';
-			query += " DROP INDEX `" + index.Key_name + "`" ; 
-			that.db.query( query, function( results ){
-				console.log( results );
-				console.log( 'SYNC: Dropped index \'' + index.Key_name + '\' from table \'' + that.spec.name + '\'' );
-				var query = 'ALTER TABLE `' + that.spec.name + '`'; 
-				query += index.Non_unique !== 0 ? ' ADD UNIQUE ' : ' ADD ';
-				query += ' INDEX `' +index.Key_name+'` ( `' + index.Column_name + '` )';
-				console.log( query ); 
-
-				that.db.query( query, function( results ){
-					console.log( 'SYNC: Added index \'' + index.Key_name + '\' to \`' + that.spec.name + '.' + index.Column_name + '\'' );
-				});
-
-			});
+		notInDb = _.map( notInDb, function( index ){
+			return index.Key_name; 
 		});
+		dbIndexes = _.map( dbIndexes, function( index ){
+			return index.Key_name; 
+		});	
+		differentFromDb = _.map( differentFromDb, function( index ){
+			return index.Key_name; 
+		});
+		var indexesStatus = {};
+		if ( notInDb.length > 0 ) indexesStatus.added = notInDb;
+		if ( notInDb.length > 0 ) indexesStatus.removed = dbIndexes;
+		if ( notInDb.length > 0 ) indexesStatus.changed = differentFromDb;
+
+		if ( _.isEmpty( indexesStatus ) ){
+			return cb( true )
+		} else {
+			return cb( indexesStatus);
+		}		
 	});
 
 	// 	foreach( $index_types as $index_type => $indexes ){
