@@ -509,43 +509,7 @@ TableSync.prototype.checkConstraints = function( cb ){
 		// 	return cb( indexesStatus);
 		// }		
 	});
-	// if ( $this->constraints ){
-	// 	$query = "select COLUMN_NAME,CONSTRAINT_NAME,\n" ;
-	// 	$query .= "REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME from information_schema.KEY_COLUMN_USAGE where\n" ;
-	// 	$query .= "TABLE_NAME = '".$this->name."'\n";
-					
-					
-	// 	foreach( $this->constraints as $constraint_type => $constraints ){
-	// 		foreach( $constraints as $column_name => $reference ){
-	// 			$query = 'SELECT DISTINCT concat( \''.$this->name.'\', \'.\', \''. $column_name .'\' ) as \''.$constraint_type.'\',' ; 
-	// 			$query .= ' concat( \''.$reference['table'].'\', \'.\', \''. $reference['column'] .'\' ) as \'references\'' ;
-	// 			$query .= ' FROM';
-	// 			$query .= ' information_schema.key_column_usage'; 
-	// 			$query .= ' WHERE'; 
-	// 			$query .= ' \''.$reference['table'] .'\' is not NULL'; 
-	// 			if ( !isset( $db_table_constraints[ $column_name ] ) ){
-	// 				$query = 'ALTER TABLE `'. $this->name .'`'; 
-	// 				$query .= ' ADD CONSTRAINT fk_'.$this->name .'_' . $column_name ; 
-	// 				$query .= ' FOREIGN KEY (`'.$column_name.'`)' ; 
-	// 				$query .= ' REFERENCES `customercloud`.`'. $reference['table'] . '` (`'.$reference['column'] .'`)' ;
-	// 				$this->query( $query ); 
-	// 				$this->error( 'DB: added foreign key fk_'.$this->name.'_'. $column_name . ' to '.$this->name .'('.$column_name.'), referencing '. $reference['table'] .'( '.$reference['column']. ')' , 'notice' ); 												
-					
-	// 			} else {
-	// 				unset( $db_table_constraints[ $column_name ] ); 
-	// 			}
-	// 		}
-	// 	}
-	// 	if ( sizeof ( $db_table_constraints ) > 0 ){			
-	// 		foreach( $db_table_constraints as $column_name => $constraint ){
-	// 			$query = 'ALTER TABLE '. $this->name ; 
-	// 			$query .= ' DROP FOREIGN KEY fk_'.$this->name . '_'.$column_name ; 
-	// 			$this->query( $query ); 
-	// 			$this->error( 'DB: dropped foreign key fk_'.$this->name.'_'. $column_name . ' from '.$this->name .'('.$column_name.')' , 'notice' ); 												
-				
-	// 		}
-	// 	}	
-	// }			
+		
 }
 function getTableQuery( tableSpec ){		
 	var query = '';
