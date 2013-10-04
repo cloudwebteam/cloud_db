@@ -41,12 +41,15 @@ function TableSync( db, tableSpec, cb ){
 			}			
 			that.checkColumns( function( columnsStatus ){
 				that.checkIndexes( function( indexesStatus ){
-					return cb({
-						table: true,
-						columns: columnsStatus,
-						indexes: indexesStatus,
-						constraints: false
-					})					
+					that.checkConstraints( function( constraintsStatus ){
+						return cb({
+							table: true,
+							columns: columnsStatus,
+							indexes: indexesStatus,
+							constraints: constraintsStatus
+						});
+					});
+				
 				});
 			}); 
 		});
@@ -334,7 +337,7 @@ TableSync.prototype.checkColumns = function( cb ){
 }
 TableSync.prototype.checkIndexes = function( cb ){
 	if ( ! this.spec.indexes ){
-		return;
+		return cb( true )
 	}
 	var that = this;
 	var query = 'SHOW INDEXES IN ' + this.spec.name ; 
@@ -404,7 +407,146 @@ TableSync.prototype.checkIndexes = function( cb ){
 		}		
 	});
 }
+TableSync.prototype.checkConstraints = function( cb ){
+	if ( ! this.spec.constraints ){
+		return cb( true )
+	}
+	var that = this;
+	var query = "select COLUMN_NAME,CONSTRAINT_NAME,\n" ;
+	query += "REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME from information_schema.KEY_COLUMN_USAGE where\n" ;
+	query += "TABLE_NAME = '" + this.spec.name + "'\n";	
+	// compare with constraints currently in DB
+	this.db.query( query, function( results ){
+		var dbConstraints = {};
+		var specConstraints = that.spec.constraints; 
+		// foreach result constraint
+		// 1) check that it is a foreign key,
+		// 2) reformat into friendly format 
+		_.filter( results, function( dbConstraint ){
+			if ( dbConstraint.CONSTRAINT_NAME !== 'PRIMARY' ){
+				if ( dbConstraint.REFERENCED_TABLE_NAME && dbConstraint.REFERENCED_COLUMN_NAME ){
+					dbConstraints[ dbConstraint.COLUMN_NAME ] = { 
+						table: dbConstraint.REFERENCED_TABLE_NAME,
+						column: dbConstraint.REFERENCED_COLUMN_NAME,
+					};
+				}
+			}
+		});
+		_.each( specConstraints, function( constraints, constraintType ){
+			_.each( constraints, function( constraintReference, columnName ){
+				if ( dbConstraints.hasOwnProperty( columnName ) ){
+					if ( dbConstraints[ columnName ].table === constraintReference.table ){
+						if ( dbConstraints[ columnName ].column === constraintReference.column ){
+							return;
+						}
+					}
+					var query = 'ALTER TABLE `' + that.spec.name + '`';
+					query += " DROP " + constraintType + " `fk_" + that.spec.name + "_" + columnName + "`" ; 
+					that.db.query( query, function( results ){
+						query = 'ALTER TABLE `' + that.spec.name + '`'; 
+						query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
+						query += ' (`'+ columnName +'`)' ; 
+						query += ' REFERENCES `cloud_db`.`' + constraintReference.table + '` (`' + constraintReference.column + '`)';
+						that.db.query( query, function( results ){
+							console.log( 'SYNC: updated foreign key fk_'+that.spec.name+'_'+columnName + ', now references \'' + constraintReference.table + '.' + constraintReference.column + '\'' );
+						});
+					});
+					return;
+				} else {
+					// this query adds foreign keys
+					query = 'ALTER TABLE `' + that.spec.name + '`'; 
+					query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
+					query += ' (`'+ columnName +'`)' ; 
+					query += ' REFERENCES `cloud_db`.`' + constraintReference.table + '` (`' + constraintReference.column + '`)';
+					that.db.query( query, function(results){
+						console.log( query );
+						console.log( 'SYNC: added foreign key fk_'+that.spec.name+'_'+columnName + ' to ' + that.spec.name + '.' + columnName + ', referencing \'' + constraintReference.table + '.' + constraintReference.column + '\'' );
+					});
+				}
+			});
 
+		});
+	// foreach( $this->constraints as $constraint_type => $constraints ){
+	// 		foreach( $constraints as $column_name => $reference ){
+	// 			$query = 'SELECT DISTINCT concat( \''.$this->name.'\', \'.\', \''. $column_name .'\' ) as \''.$constraint_type.'\',' ; 
+	// 			$query .= ' concat( \''.$reference['table'].'\', \'.\', \''. $reference['column'] .'\' ) as \'references\'' ;
+	// 			$query .= ' FROM';
+	// 			$query .= ' information_schema.key_column_usage'; 
+	// 			$query .= ' WHERE'; 
+	// 			$query .= ' \''.$reference['table'] .'\' is not NULL'; 
+	// 			if ( !isset( $db_table_constraints[ $column_name ] ) ){
+	// 				$query = 'ALTER TABLE `'. $this->name .'`'; 
+	// 				$query .= ' ADD CONSTRAINT fk_'.$this->name .'_' . $column_name ; 
+	// 				$query .= ' FOREIGN KEY (`'.$column_name.'`)' ; 
+	// 				$query .= ' REFERENCES `customercloud`.`'. $reference['table'] . '` (`'.$reference['column'] .'`)' ;
+	// 				$this->query( $query ); 
+	// 				$this->error( 'DB: added foreign key fk_'.$this->name.'_'. $column_name . ' to '.$this->name .'('.$column_name.'), referencing '. $reference['table'] .'( '.$reference['column']. ')' , 'notice' ); 												
+					
+	// 			} else {
+	// 				unset( $db_table_constraints[ $column_name ] ); 
+	// 			}
+	// 		}
+	// 	}		
+		var notInDb = [];		
+		// var differentFromDb = [];
+		// notInDb = _.map( notInDb, function( index ){
+		// 	return index.Key_name; 
+		// });
+		// dbIndexes = _.map( dbIndexes, function( index ){
+		// 	return index.Key_name; 
+		// });	
+		// differentFromDb = _.map( differentFromDb, function( index ){
+		// 	return index.Key_name; 
+		// });
+		// var constraintsStatus = {};
+		// if ( notInDb.length > 0 ) indexesStatus.added = notInDb;
+		// if ( notInDb.length > 0 ) indexesStatus.removed = dbIndexes;
+		// if ( notInDb.length > 0 ) indexesStatus.changed = differentFromDb;
+
+		// if ( _.isEmpty( indexesStatus ) ){
+		// 	return cb( true )
+		// } else {
+		// 	return cb( indexesStatus);
+		// }		
+	});
+	// if ( $this->constraints ){
+	// 	$query = "select COLUMN_NAME,CONSTRAINT_NAME,\n" ;
+	// 	$query .= "REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME from information_schema.KEY_COLUMN_USAGE where\n" ;
+	// 	$query .= "TABLE_NAME = '".$this->name."'\n";
+					
+					
+	// 	foreach( $this->constraints as $constraint_type => $constraints ){
+	// 		foreach( $constraints as $column_name => $reference ){
+	// 			$query = 'SELECT DISTINCT concat( \''.$this->name.'\', \'.\', \''. $column_name .'\' ) as \''.$constraint_type.'\',' ; 
+	// 			$query .= ' concat( \''.$reference['table'].'\', \'.\', \''. $reference['column'] .'\' ) as \'references\'' ;
+	// 			$query .= ' FROM';
+	// 			$query .= ' information_schema.key_column_usage'; 
+	// 			$query .= ' WHERE'; 
+	// 			$query .= ' \''.$reference['table'] .'\' is not NULL'; 
+	// 			if ( !isset( $db_table_constraints[ $column_name ] ) ){
+	// 				$query = 'ALTER TABLE `'. $this->name .'`'; 
+	// 				$query .= ' ADD CONSTRAINT fk_'.$this->name .'_' . $column_name ; 
+	// 				$query .= ' FOREIGN KEY (`'.$column_name.'`)' ; 
+	// 				$query .= ' REFERENCES `customercloud`.`'. $reference['table'] . '` (`'.$reference['column'] .'`)' ;
+	// 				$this->query( $query ); 
+	// 				$this->error( 'DB: added foreign key fk_'.$this->name.'_'. $column_name . ' to '.$this->name .'('.$column_name.'), referencing '. $reference['table'] .'( '.$reference['column']. ')' , 'notice' ); 												
+					
+	// 			} else {
+	// 				unset( $db_table_constraints[ $column_name ] ); 
+	// 			}
+	// 		}
+	// 	}
+	// 	if ( sizeof ( $db_table_constraints ) > 0 ){			
+	// 		foreach( $db_table_constraints as $column_name => $constraint ){
+	// 			$query = 'ALTER TABLE '. $this->name ; 
+	// 			$query .= ' DROP FOREIGN KEY fk_'.$this->name . '_'.$column_name ; 
+	// 			$this->query( $query ); 
+	// 			$this->error( 'DB: dropped foreign key fk_'.$this->name.'_'. $column_name . ' from '.$this->name .'('.$column_name.')' , 'notice' ); 												
+				
+	// 		}
+	// 	}	
+	// }			
+}
 function getTableQuery( tableSpec ){		
 	var query = '';
 	query += "CREATE TABLE `" + tableSpec.name + '`';

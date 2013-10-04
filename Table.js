@@ -91,7 +91,7 @@ Table.prototype.sync = function( cb ){
 		name: this.spec.name, 
 		columns: this.getColumns(),
 		indexes: this.spec.indexes,		
-		constraints: {}
+		constraints: this.spec.constraints
 	}
 	TableSync.sync( this._db, syncSpec, cb );
 }	
