@@ -320,33 +320,16 @@ TableSync.prototype.checkColumns = function( cb ){
 			return col.name; 
 		});
 		var columnsStatus = {};
-		_.each({
-			added: columnsToAdd,
-			removed: columnsToRemove,
-			renamed: columnsToRename,
-			changed: columnsToChange,
-		}, function( item, key ){
-			if( item.length > 0 ){
-				columnsStatus[ key ] = item;
-			}
-		});
+		if ( columnsToAdd.length > 0 ) columnsStatus.added = columnsToAdd;
+		if ( columnsToRemove.length > 0 ) columnsStatus.removed = columnsToRemove;
+		if ( columnsToRename.length > 0 ) columnsStatus.renamed = columnsToRemove;
+		if ( columnsToChange.length > 0 ) columnsStatus.changed = columnsToChange;
+
 		if ( _.isEmpty( columnsStatus ) ){
 			return cb( true )
 		} else {
 			return cb( columnsStatus);
 		}
-		
-		return cb({
-			table: true,
-			columns: {
-				added: columnsToAdd,
-				removed: columnsToRemove,
-				renamed: columnsToRename,
-				changed: columnsToChange,
-			},
-			constraints: false
-		});
-
 	} );	
 }
 TableSync.prototype.checkIndexes = function( cb ){
@@ -387,7 +370,6 @@ TableSync.prototype.checkIndexes = function( cb ){
 			if( foundIndex ){
 
 				if ( ! _.isEqual( tableIndex, _.pick( foundIndex, 'Key_name', 'Column_name', 'Non_unique' ) ) ){
-					console.log(tableIndex, _.pick( foundIndex, _.keys( tableIndex ) ) ); 
 					differentFromDb.push( tableIndex );
 				}	
 				// remove the inspected item from dbIndexes
@@ -421,33 +403,6 @@ TableSync.prototype.checkIndexes = function( cb ){
 			return cb( indexesStatus);
 		}		
 	});
-
-	// 	foreach( $index_types as $index_type => $indexes ){
-	// 		foreach( $indexes as $index_name => $columns ){
-	// 			$query = 'ALTER TABLE `'. $this->name .'`'; 
-	// 			$columns_name = is_array( $columns ) ? '`'. implode( '`, `', $columns ) .'`': $columns ;  
-	// 			if ( isset( $db_indexes[ $index_name ] ) ){
-	// 				$old_columns_name = is_array( $db_indexes[ $index_name ] ) ? implode( ', ', $db_indexes[ $index_name ] ) : $db_indexes[ $index_name ] ;  
-	// 				if ( $db_indexes[ $index_name ] !== $columns ){
-
-	// 					$query .= " DROP INDEX `".$index_name . "`" ; 
-	// 					$this->query( $query ); 
-	// 					$this->error( 'DB: dropped index \''. $index_name . '\' from '. $old_columns_name , 'notice' ); 					
-	// 					$query = 'ALTER TABLE `'. $this->name .'`' ; 								
-	// 					$query .= ' ADD '. $index_type . ' INDEX `'.$index_name.'` ( '.$columns_name.' )' ; 
-	// 					$this->query( $query ); 								
-	// 					$this->error( 'DB: added index \''. $index_name . '\' to '. $columns_name , 'notice' ); 												
-	// 				}
-					
-	// 			} else {
-	// 				$query .= ' ADD '. $index_type . ' INDEX `'.$index_name .'` ( '.$columns_name.' )' ; 	
-	// 				$this->query( $query ); 
-	// 				$this->error( 'DB: added '. $index_type . ' INDEX \''.$index_name .'\' to '. $this->name . ' ('. $columns_name .')', 'notice' ); 												
-										
-	// 			}
-	// 		}
-	// 	}
-	// }
 }
 
 function getTableQuery( tableSpec ){		
