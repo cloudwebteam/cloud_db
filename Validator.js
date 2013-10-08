@@ -44,10 +44,10 @@ Validator.prototype.prepareToSave = function( values, tableSpec ){
 
 	var toSave = {};
 	_.each( values, function( value, fieldName ){
-		if ( ! tableSpec.hasOwnProperty( fieldName )){
+		var spec = _.findWhere( tableSpec, { name: fieldName });
+		if ( ! spec ){
 			return;
 		}
-		var spec = tableSpec[ fieldName ];
 		var validateAs = spec.hasOwnProperty( 'validate' ) ? spec.validate : false;
 		if ( validateAs ){
 			if ( that._typeSaves.hasOwnProperty( validateAs )){
