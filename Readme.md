@@ -77,31 +77,31 @@ Pass this dude into `.addTable({tableSpec});` to define your table
 	name: 'tableName',
 	columns: {
 		columnName: {
-			// db options
-			db_type: str, // shortcut for db.type
+			/* ==== db options (all optional) ============================================= */
+			db_type: 'string', // shortcut for db.type
 			db: {
-				type: str, // either this or db_type. the literal string MySQL uses to declare the cell type.
-							// eg. 'varchar(200)'
-				default: false, // optional,
-				null: (bool), // optional, default: true
-				unique: (bool), // optional, default: false
-								// adds a unique index to the column...forces every row to have a unique value
-				foreign: { // optional, default: false
-					table: TABLENAME, // name of the table it references
-					column: COLUMN_NAME // name of the column it references
-										// adds a foreign key referencing TABLENAME.COLUMN_NAME (only allows values present in that column)
-										// Referenced column: 1) must be the same data type, 2) must have a unique index on it
+				type: 'string',  // default: 'varchar(200)'				
+								 // you can use this, or db_type as a shortcut
+								 // the literal string MySQL uses to declare the cell type.
+				default: bool/str/int, // default: false
+				null: bool,   // default: true
+				unique: bool, // default: false
+							  // adds a unique index to the column...forces every row to have a unique value
+				foreign: { // default: false
+					table: 'string', // name of the table it references
+					column: 'string' // name of the column it references
+									 // adds a foreign key referencing table.column (only allows values present in that column)
+									 // Referenced column: 1) must be the same data type, 2) must have a unique index on it
 				}
 			},
-
-			// validation options
+			/* ==== validation options (all optional) ======================================== */
 			required: bool/str, // if true, it runs through the 'required' validation type, and uses that error.
 								// if string, it runs through the 'required' validation typ, and string is the custom error message.
 			validate: validation_type/regex, // see validation options,
 			error: str // if validate type is provided, this is an optional custom error given.
 
-			// other options (all optional, whatever your app needs).
-			// for things like form generation and data display.
+			/* ==== custom options ================================== */
+			/* ---- whatever your app needs, for things like form generation and data display  */
 			title: 'Human Readable Name',
 			type: 'select', 
 			options: [ 'Option 1', 'Option 2', 'Option 3']
