@@ -46,7 +46,9 @@ Table.prototype._formatColumnSpecs = function( columnsSpec ){
 		colSpec.db = _.extend({ 
 			type: 'varchar(200)',
 			'default': null,
-			'null': true
+			'null': true,
+			unique: false,
+			foreign: false
 		}, colSpec.db );
 
 		if ( colSpec.hasOwnProperty( 'db_type' ) ){
@@ -79,6 +81,8 @@ Table.prototype._prepareArgs = function( args ){
 }
 Table.prototype.validate = function( toSave ){
 	var validation = this._validator.checkAgainstTable( toSave, this.getColumns() );
+	console.log( validation );
+	
 	if ( validation.passed ){
 		return validation.toSave ; 
 	} else {
@@ -117,7 +121,6 @@ Table.prototype.create = function( args, next ){
 		this.log( 'You must provide an object to '+ this.name + '.create()' ); 
 		return;
 	}
-
 	next = next || noop;
 
 	args = this.validate( args );
@@ -136,7 +139,6 @@ Table.prototype.create = function( args, next ){
 			col_values.push( '\'' + col_value  + '\'' ); 
 		}		
 	});
-	
 	var query =  'INSERT INTO `'+ this.name + '` ';
 	
 	query += '(' + col_names.join( ', ' ) + ') '; 		
