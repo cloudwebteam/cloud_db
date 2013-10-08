@@ -1,8 +1,34 @@
 Cloud DB
 =======
 
+Why?
+-----
+Check out the code below to get the general idea
+
+```
+var db = require( 'cloud_db' );
+db.use({
+	host: 'localhost', 
+	user: 'devAdmin',
+	password: 'theBestCloudPW',
+	database: 'cloud_db'
+}).addTable( myTable ).connect( function(){
+	db.table( 'myTableName' ).get({ 
+		name: 'Joe' // retrieve all rows with whose column 'name' is equal to 'Joe'. Boom.
+	});
+});
+```
+
+Basically, you connect, add your tables, and then you have some very easy-to-use but powerful functions to manipulate your database.
+
 Setup
 -------
+#### 0. a) Install 'cloud_db' as module and b) require.
+
+```js
+var db = require( 'cloud_db' );
+```
+
 #### 1. Configure connection
 
 ```js 
@@ -83,9 +109,9 @@ Pass this dude into `.addTable({tableSpec});` to define your table
 			db: {
 				type: 'string',  // default: 'varchar(200)'				
 								 // you can use this, or db_type as a shortcut
-								 // the literal string MySQL uses to declare the cell type.
-				default: bool/str/int, // default: false
-				null: bool,   // default: true
+								 // the literal string MySQL uses to declare the data type.
+				default: bool/str/int, // default: false, the default for the column
+				null: bool,   // default: true,
 				unique: bool, // default: false
 							  // adds a unique index to the column...forces every row to have a unique value
 				foreign: { // default: false
@@ -96,10 +122,10 @@ Pass this dude into `.addTable({tableSpec});` to define your table
 				}
 			},
 			/* ==== validation options (all optional) ======================================== */
-			required: bool/str, // if true, it runs through the 'required' validation type, and uses that error.
-								// if string, it runs through the 'required' validation typ, and string is the custom error message.
+			required: bool/str, // if true, it runs the 'required' validation type, and uses that error.
+								// if string, it runs the 'required' validation type, and string is the custom error message.
 			validate: validation_type/regex, // see validation options,
-			error: str // if validate type is provided, this is an optional custom error given.
+			error: 'string' // this is an optional custom error given if the 'validate' function throws an error.
 
 			/* ==== custom options (all optional) ================================== */
 			/* ---- whatever your app needs, for things like form generation and data display  */
