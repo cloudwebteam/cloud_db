@@ -78,7 +78,8 @@ Pass this dude into `.addTable({tableSpec});` to define your table
 	columns: {
 		columnName: {
 			/* ==== db options (all optional) ============================================= */
-			db_type: 'string', // shortcut for db.type
+			db_type: 'string', // default: 'varchar(200)'
+							   // shortcut for db.type
 			db: {
 				type: 'string',  // default: 'varchar(200)'				
 								 // you can use this, or db_type as a shortcut
@@ -100,7 +101,7 @@ Pass this dude into `.addTable({tableSpec});` to define your table
 			validate: validation_type/regex, // see validation options,
 			error: str // if validate type is provided, this is an optional custom error given.
 
-			/* ==== custom options ================================== */
+			/* ==== custom options (all optional) ================================== */
 			/* ---- whatever your app needs, for things like form generation and data display  */
 			title: 'Human Readable Name',
 			type: 'select', 
