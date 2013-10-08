@@ -19,7 +19,15 @@ db.use({
 });
 ```
 
-Basically, you connect, add your tables, and then you have some very easy-to-use but powerful functions to manipulate your database.
+Basically, you 
+- register your tables so that cloud_db knows about them, 
+- connect to the database
+- use simple, powerful functions to retrieve and manipulate your database tables.
+
+It includes features like:
+- Syncing the database to make sure it matches what you said the table should be like
+- Easy methods for validating and saving data, so you can be sure they are in the right format.
+- Easily add and remove unique indexes and foreign keys to constrain your data.
 
 Setup
 -------
