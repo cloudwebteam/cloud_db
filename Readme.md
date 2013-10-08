@@ -46,6 +46,8 @@ Syncing will:
 - see an extra column in the DB and remove it (if it is empty, otherwise it will simply let you know).
 - recognize a renamed column and rename it.
 - alter changed properties such as default and null.
+- add/remove unique indexes
+- add/remove foreign keys ( see table spec)
 
 #### 5. CRUD
 ```js
@@ -80,8 +82,16 @@ Pass this dude into `.addTable({tableSpec});` to define your table
 			db: {
 				type: str, // either this or db_type. the literal string MySQL uses to declare the cell type.
 							// eg. 'varchar(200)'
-				'default': false, // optional,
-				'null': true // optional
+				default: false, // optional,
+				null: (bool), // optional, default: true
+				unique: (bool), // optional, default: false
+								// adds a unique index to the column...forces every row to have a unique value
+				foreign: { // optional, default: false
+					table: TABLENAME, // name of the table it references
+					column: COLUMN_NAME // name of the column it references
+										// adds a foreign key referencing TABLENAME.COLUMN_NAME (only allows values present in that column)
+										// Referenced column: 1) must be the same data type, 2) must have a unique index on it
+				}
 			},
 
 			// validation options
