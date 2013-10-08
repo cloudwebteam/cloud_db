@@ -56,7 +56,7 @@ function TableSync( db, tableSpec, cb ){
 							table: true,
 							columns: columnsStatus,
 							uniqueIndexes: uniqueConstraintsStatus,
-							foreignIndexes: foreignConstraintsStatus
+							foreignKeys: foreignConstraintsStatus
 						});
 					});
 				
@@ -77,88 +77,78 @@ function TableSync( db, tableSpec, cb ){
 				});
 			} else if ( status.columns !== true ) {
 				// CREATE added columns
-				if ( status.columns.added.length > 0 ){
-					_.each( status.columns.added, function( colName ){
-						var colPosition = colNames.indexOf( colName ); 
-						var afterWhichCol = colPosition === 0 ? 'ID' : colNames[ colPosition - 1 ];
-						var colSpec = _.findWhere( that.spec.columns, { name: colName });
-						var query = 'ALTER TABLE `' + that.spec.name + '`';
-						query += ' ADD `' + colName + '` ' + colSpec.db.type; 
-						query += ' AFTER `' + afterWhichCol + '`' ;
-						
-						db.query( query, function( result ){
-							if ( result ){
-								console.log( 'SYNC: Added column \'' + colName + '\' to table \'' + that.spec.name + '\'' );
-							}
-						});
+				_.each( status.columns.added, function( colName ){
+					var colPosition = colNames.indexOf( colName ); 
+					var afterWhichCol = colPosition === 0 ? 'ID' : colNames[ colPosition - 1 ];
+					var colSpec = _.findWhere( that.spec.columns, { name: colName });
+					var query = 'ALTER TABLE `' + that.spec.name + '`';
+					query += ' ADD `' + colName + '` ' + colSpec.db.type; 
+					query += ' AFTER `' + afterWhichCol + '`' ;
+					
+					db.query( query, function( result ){
+						if ( result ){
+							console.log( 'SYNC: Added column \'' + colName + '\' to table \'' + that.spec.name + '\'' );
+						}
 					});
-				}
+				});
 				// DELETE removed columns ( if empty )
-				if ( status.columns.removed.length > 0 ){
-					_.each( status.columns.removed, function( colName ){
-						// check if its empty
-						var query = 'SELECT * FROM `' + that.spec.name + '`' ;
-						query += " WHERE `" + colName + "` IS NOT NULL" ; 
+				_.each( status.columns.removed, function( colName ){
+					// check if its empty
+					var query = 'SELECT * FROM `' + that.spec.name + '`' ;
+					query += " WHERE `" + colName + "` IS NOT NULL" ; 
+					that.db.query( query, function( result ){
+						if ( result.length > 0 ){
+							console.log( 'SYNC: \'' + that.spec.name + '.' + colName + '\' is no longer needed, but was not deleted because it has data.')
+							return false; 
+						}
+
+						query = 'ALTER TABLE `' + that.spec.name + '` DROP ' + colName; 
 						that.db.query( query, function( result ){
-							if ( result.length > 0 ){
-								console.log( 'SYNC: \'' + that.spec.name + '.' + colName + '\' is no longer needed, but was not deleted because it has data.')
-								return false; 
+							if ( result ){
+								console.log( 'SYNC: Removed \'' + that.spec.name + '.' + colName + '\'' );
 							}
+						}); 
 
-							query = 'ALTER TABLE `' + that.spec.name + '` DROP ' + colName; 
-							that.db.query( query, function( result ){
-								if ( result ){
-									console.log( 'SYNC: Removed \'' + that.spec.name + '.' + colName + '\'' );
-								}
-							}); 
-
-						});
-					}); 
-
-				}
+					});
+				}); 
 
 				// RENAME renamed columns 
-				if ( status.columns.renamed.length > 0 ){
-					_.each( status.columns.renamed, function( renamedCol ){
-						var colSpec = _.findWhere( that.spec.columns, { name: renamedCol.to });						
-						var nullValue =  colSpec.db['null'] ? ' null' : ' not null';
-						var defaultValue = colSpec.db['default'] ? ' DEFAULT ' + colSpec.db['default'] : '';
+				_.each( status.columns.renamed, function( renamedCol ){
+					var colSpec = _.findWhere( that.spec.columns, { name: renamedCol.to });						
+					var nullValue =  colSpec.db['null'] ? ' null' : ' not null';
+					var defaultValue = colSpec.db['default'] ? ' DEFAULT ' + colSpec.db['default'] : '';
 
-						var query = 'ALTER TABLE `' + that.spec.name + '`';
-						query += ' CHANGE `' + renamedCol.from + '`';
-						query += ' `' + renamedCol.to + '`';
-						query += ' ' + colSpec.db.type;
-						query += nullValue;
-						query += defaultValue;	
+					var query = 'ALTER TABLE `' + that.spec.name + '`';
+					query += ' CHANGE `' + renamedCol.from + '`';
+					query += ' `' + renamedCol.to + '`';
+					query += ' ' + colSpec.db.type;
+					query += nullValue;
+					query += defaultValue;	
 
-						that.db.query( query, function( result ){
-							if ( result ){
-								console.log( 'Renamed column \'' + that.spec.name + '.' + renamedCol.from + '\' to \'' + that.spec.name + '.' + renamedCol.to + '\'' );
-							}
-						} );
-					});			
-				}				
+					that.db.query( query, function( result ){
+						if ( result ){
+							console.log( 'Renamed column \'' + that.spec.name + '.' + renamedCol.from + '\' to \'' + that.spec.name + '.' + renamedCol.to + '\'' );
+						}
+					} );
+				});			
 				// CHANGED altered columns
-				if ( status.columns.changed.length > 0 ){
-					_.each( status.columns.changed, function( colName ){
-						var colSpec = that.spec.columns[ colName ];
-						var nullValue =  colSpec.db['null'] ? ' null' : ' not null';
-						var defaultValue = colSpec.db['default'] ? ' DEFAULT ' + colSpec.db['default'] : '';
+				_.each( status.columns.changed, function( colName ){
+					var colSpec = _.findWhere( that.spec.columns, {name: colName });
+					var nullValue =  colSpec.db['null'] ? ' null' : ' not null';
+					var defaultValue = colSpec.db['default'] ? ' DEFAULT ' + colSpec.db['default'] : '';
 
-						var query = 'ALTER TABLE `' + that.spec.name + '`';
-						query += ' MODIFY COLUMN `' + colName + '`';
-						query += ' ' + colSpec.db.type;
-						query += nullValue;
-						query += defaultValue;	
+					var query = 'ALTER TABLE `' + that.spec.name + '`';
+					query += ' MODIFY COLUMN `' + colName + '`';
+					query += ' ' + colSpec.db.type;
+					query += nullValue;
+					query += defaultValue;	
 
-						that.db.query( query, function( result ){
-							if ( result ){
-								console.log( 'Updated column \'' + that.spec.name + '.' + colName + '\' because it had changed.' );
-							}
-						} )
-					});
-					
-				}				
+					that.db.query( query, function( result ){
+						if ( result ){
+							console.log( 'Updated column \'' + that.spec.name + '.' + colName + '\' because it had changed.' );
+						}
+					} )
+				});
 			}
 			if ( status.uniqueIndexes ){
 				_.each( status.uniqueIndexes.added, function( columnName ){
@@ -184,41 +174,80 @@ function TableSync( db, tableSpec, cb ){
 					});
 				}); 
 			}
-			if ( status.constraints ){
-				var query = 'ALTER TABLE `' + that.spec.name + '`';
-				query += " DROP " + constraintType + " `fk_" + that.spec.name + "_" + columnName + "`" ; 
-				that.db.query( query, function( results ){
-					// handle added
-					query = 'ALTER TABLE `' + that.spec.name + '`'; 
+			if ( status.foreignKeys ){
+				_.each( status.foreignKeys.removed, function( reference, columnName ){
+					var query = 'ALTER TABLE `' + that.spec.name + '`';
+
+					if ( reference.fkName ){
+						query += " DROP FOREIGN KEY `" + reference.fkName + "`" ;
+						that.db.query( query, function( results ){
+							console.log( 'SYNC: dropped foreign key \'' + reference.fkName + '\' on column \'' + columnName + '\', referencing  \'' + reference.table + '.' + reference.column + '\'' );
+							var query = 'ALTER TABLE `' + that.spec.name + '`';
+							query += " DROP INDEX `" + reference.indexName + "`" ; 
+							that.db.query( query, function( results ){
+								console.log( 'SYNC: dropped index \'' + reference.name + '\' on column \'' + columnName + '\'' );
+							});								
+						});
+					} else if ( reference.indexName ){
+						query += " DROP INDEX `" + reference.indexName + "`" ; 
+						that.db.query( query, function( results ){
+							console.log( 'SYNC: dropped index \'' + reference.name + '\' on column \'' + columnName + '\'' );
+						});						
+					}
+				}); 		
+				_.each( status.foreignKeys.added, function( reference, columnName ){
+					var query = 'ALTER TABLE `' + that.spec.name + '`'; 
 					query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
 					query += ' (`'+ columnName +'`)' ; 
-					query += ' REFERENCES `cloud_db`.`' + constraintReference.table + '` (`' + constraintReference.column + '`)';
+					query += ' REFERENCES `cloud_db`.`' + reference.table + '` (`' + reference.column + '`)';
+					console.log( query );
 					that.db.query( query, function(results){
-						console.log( 'SYNC: added foreign key fk_'+that.spec.name+'_'+columnName + ' to ' + that.spec.name + '.' + columnName + ', referencing \'' + constraintReference.table + '.' + constraintReference.column + '\'' );
+						if ( results ){
+							console.log( 'SYNC: added foreign key fk_'+that.spec.name+'_'+columnName + ' to ' + that.spec.name + '.' + columnName + ', referencing \'' + reference.table + '.' + reference.column + '\'' );
+						} else {
+							console.log( 'SYNC: FAILED to add foreign key fk_'+that.spec.name+'_'+columnName + ' to ' + that.spec.name + '.' + columnName + '. \n 1)Check that the columns have the same type. \n 2)Check that the referenced column has a unique index on it.' );
+						}
 					});				
-
-					//handle removed
-
-					// handle updated
-					query = 'ALTER TABLE `' + that.spec.name + '`'; 
-					query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
-					query += ' (`'+ columnName +'`)' ; 
-					query += ' REFERENCES `cloud_db`.`' + constraintReference.table + '` (`' + constraintReference.column + '`)';
-					that.db.query( query, function( results ){
-						console.log( 'SYNC: updated foreign key fk_'+that.spec.name+'_'+columnName + ', now references \'' + constraintReference.table + '.' + constraintReference.column + '\'' );
-					});
 				});
-				return;				
+				var addForeignKey = function( columnName, reference ){
+					var query = 'ALTER TABLE `' + that.spec.name + '`'; 
+					query += ' ADD FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
+					query += ' (`'+ columnName +'`)' ; 
+					query += ' REFERENCES `cloud_db`.`' + reference.table + '` (`' + reference.column + '`)';
+					that.db.query( query, function( results ){
+						if ( results ){
+							console.log( 'SYNC: updated foreign key fk_'+that.spec.name+'_'+columnName + ', now references \'' + reference.table + '.' + reference.column + '\'' );
+						} else {
+							console.log( 'SYNC: FAILED to update foreign key fk_'+that.spec.name+'_'+columnName + ' to ' + that.spec.name + '.' + columnName + '. \n 1)Check that the columns have the same type. \n 2)Check that the referenced column has a unique index on it.' );
+						}
+					});
+				}
+				_.each( status.foreignKeys.changed, function( reference, columnName ){
+
+					// first, drop
+					var query = 'ALTER TABLE `' + that.spec.name + '`';
+
+					if ( reference.fkName ){
+						query += " DROP FOREIGN KEY `" + reference.fkName + "`" ;
+						that.db.query( query, function( results ){
+							console.log( 'SYNC: dropped foreign key \'' + reference.fkName + '\' on column \'' + columnName + '\', referencing  \'' + reference.table + '.' + reference.column + '\'' );
+							addForeignKey( columnName, reference ); 
+						});
+					} else {			
+						addForeignKey( columnName, reference ); 
+					}
+				});
 			}
 			var all_good = true;
-			if ( status.table !== true 
-				|| status.columns !== true 
-				|| status.indexes !== true
-			){
-				console.log( status );
-				cb( 'SYNCING...', 'Everything looks good' );
+			_.each( status, function( checked ){
+				if ( checked !== true ){
+					all_good = false;
+				}
+			})
+			if ( all_good ){
+				cb( true );
 			} else {
-				cb( 'SYNCING...', 'Changes needed', status );
+				cb( status );
 			}
 		});
 	}
@@ -251,7 +280,6 @@ TableSync.prototype.checkColumns = function( cb ){
 				'default': dbColumn.Default
 			});
 		});
-
 		// go through columns in spec and compare to DB
 		var columnsToRemove = [];
 		var columnsToAdd = [];
@@ -272,9 +300,13 @@ TableSync.prototype.checkColumns = function( cb ){
 				return;
 			}		
 			var updateNeeded = false;		
-
 			_.each( colSpec.db, function( value, key ){
+				if ( key === 'unique' || key === 'foreign'){
+					return;
+				}
+
 				if ( value !== dbColumn[key] ){
+
 					// change in NULL is a little nuanced
 					if ( key  === 'null' ){
 						if ( value && dbColumn[key].toLowerCase() !== 'yes' ){
@@ -284,9 +316,21 @@ TableSync.prototype.checkColumns = function( cb ){
 						}
 					// change in anything isn't, and a sync is required
 					} else {
-						if ( _.isNumber( value ) && value !== +dbColumn[key] ){
+						if ( _.isNumber( value ) ){
+							if ( value !== +dbColumn[key] ){
+								updateNeeded = true;
+							}
+						} else if ( value === true ){
+							if ( dbColumn[key] !== 'YES' ){
+								updateNeeded = true;
+							}
+						} else if ( value === false ){
 							updateNeeded = true;
-						}
+						} else {
+							console.log( key, value, dbColumn[key] ); 
+
+							updateNeeded = true;
+						}				
 					}
 				}						
 			});
@@ -420,69 +464,78 @@ TableSync.prototype.checkUniqueConstraints = function( uniqueConstraints, cb ){
 		}		
 	});
 }
-TableSync.prototype.checkForeignConstraints = function( foreignConstraints, cb ){
+TableSync.prototype.checkForeignConstraints = function( specConstraints, cb ){
 	if ( ! this.spec.constraints ){
 		return cb( true )
 	}
 	var that = this;
-	var query = "select COLUMN_NAME,CONSTRAINT_NAME,\n" ;
-	query += "REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME from information_schema.KEY_COLUMN_USAGE where\n" ;
-	query += "TABLE_NAME = '" + this.spec.name + "'\n";	
-	// compare with constraints currently in DB
+
+	// first, check all the indexes on table
+	var query = 'SHOW INDEXES IN ' + this.spec.name; 
+	query += ' WHERE Key_name != \'PRIMARY\''; 	// not primary
+	query += ' AND Non_unique = 1';	// and non-unique
 	this.db.query( query, function( results ){
-		var dbConstraints = {};
-		var specConstraints = that.spec.constraints; 
-		// foreach result constraint
-		// 1) check that it is a foreign key,
-		// 2) reformat into friendly format 
-		_.filter( results, function( dbConstraint ){
-			if ( dbConstraint.CONSTRAINT_NAME !== 'PRIMARY' ){
-				if ( dbConstraint.REFERENCED_TABLE_NAME && dbConstraint.REFERENCED_COLUMN_NAME ){
-					dbConstraints[ dbConstraint.COLUMN_NAME ] = { 
-						table: dbConstraint.REFERENCED_TABLE_NAME,
-						column: dbConstraint.REFERENCED_COLUMN_NAME,
-					};
-				}
-			}
+		var dbForeignKeys = {}; 
+		_.filter( results, function( dbIndex ){
+			dbForeignKeys[ dbIndex.Column_name ] = { 
+				table: false,
+				column: false,
+				fkName: false,
+				indexName: dbIndex.Key_name
+			};
 		});
-		var addedConstraints = [];
-		var removedConstraints = [];
-		var updatedConstraints = [];
-		_.each( specConstraints, function( constraints, constraintType ){
-			_.each( constraints, function( constraintReference, columnName ){
-				if ( dbConstraints.hasOwnProperty( columnName ) ){
-					if ( dbConstraints[ columnName ].table === constraintReference.table ){
-						if ( dbConstraints[ columnName ].column === constraintReference.column ){
-							// identical property exists in DB, so no updated needed
-							return;
-						}
-					}
-					// exists, but not identical, so add to updated								
-					updatedConstraints.push({ type: constraintType, column: columnName });
-					delete dbConstraints[ columnName ];					
-				} else {
-					// foreign key does not exist, so add it.
-					addedConstraints.push({ type: constraintType, column: columnName });
+		// then, get what foreign keys are currently active
+		var query = "SELECT COLUMN_NAME,CONSTRAINT_NAME,\n" ;
+		query += "REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME from information_schema.KEY_COLUMN_USAGE where\n" ;
+		query += "TABLE_NAME = '" + that.spec.name + "'\n";	
+		that.db.query( query, function( results ){
+			var foreignKeyRecords = results; // I think that these results are all foreign keys that have actually been used
+			_.each( dbForeignKeys, function( dbIndex, columnName ){
+				var foundIndex = _.findWhere( foreignKeyRecords, { COLUMN_NAME: columnName });
+				if ( foundIndex ){
+					dbIndex.table = foundIndex.REFERENCED_TABLE_NAME;
+					dbIndex.column = foundIndex.REFERENCED_COLUMN_NAME;
+					dbIndex.fkName = foundIndex.CONSTRAINT_NAME;
 				}
 			});
-		});
-		// remaining dbConstraints need to be deleted 
-		_.each( dbConstraints, function( dbConstraint, columnName ){
-			removedConstraints.push({ type: 'foreign key', column: columnName });
-		});
-		
-		var constraintsStatus = {};
-		if ( addedConstraints.length > 0 ) constraintsStatus.added = addedConstraints;
-		if ( removedConstraints.length > 0 ) constraintsStatus.removed = removedConstraints;
-		if ( updatedConstraints.length > 0 ) constraintsStatus.changed = updatedConstraints;
+			var addedConstraints = {};
+			var removedConstraints = {};
+			var updatedConstraints = {};
+			_.each( specConstraints, function( constraintReference, columnName ){
+				constraintReference.name = 'fk_' + that.spec.name + '_' + columnName;
+				if ( dbForeignKeys.hasOwnProperty( columnName ) ){
+					if ( dbForeignKeys[ columnName ].table === constraintReference.table ){
+						if ( dbForeignKeys[ columnName ].column === constraintReference.column ){
+							// identical property exists in DB, so no updated needed
+						}
+					} else {
+						// exists, but not identical, so add to updated								
+						updatedConstraints[ columnName ] = constraintReference; 
+					}
+					delete dbForeignKeys[ columnName ];					
+				} else {
+					// foreign key does not exist, so add it.
 
-		if ( _.isEmpty( constraintsStatus ) ){
-			return cb( true )
-		} else {
-			return cb( constraintsStatus );
-		}		
-	});
-		
+					addedConstraints[ columnName ] = constraintReference; 				
+				}
+			});
+			// remaining dbConstraints need to be deleted 
+			_.each( dbForeignKeys, function( dbConstraintReference, columnName ){
+				removedConstraints[columnName] = dbConstraintReference;
+			});
+
+			var constraintsStatus = {};
+			if ( ! _.isEmpty( addedConstraints ) ) constraintsStatus.added = addedConstraints;
+			if ( ! _.isEmpty( removedConstraints ) ) constraintsStatus.removed = removedConstraints;
+			if ( ! _.isEmpty( updatedConstraints ) ) constraintsStatus.changed = updatedConstraints;
+
+			if ( _.isEmpty( constraintsStatus ) ){
+				return cb( true )
+			} else {
+				return cb( constraintsStatus );
+			}		
+		});
+	}); 
 }
 function getTableQuery( tableSpec ){		
 	var query = '';
