@@ -7,9 +7,7 @@ function TableSync( db, tableSpec, cb ){
 	this.db = db;
 	this.spec = {
 		name: '', 
-		columns: {}, 
-		indexes: {},
-		constraints: {}
+		columns: {}
 	}
 	_.extend( this.spec, tableSpec );
 
@@ -38,15 +36,27 @@ function TableSync( db, tableSpec, cb ){
 					indexes: false,
 					constraints: false
 				})
-			}			
+			}
+
 			that.checkColumns( function( columnsStatus ){
-				that.checkIndexes( function( indexesStatus ){
-					that.checkConstraints( function( constraintsStatus ){
+				// compile a list of unique indexes and foreign keys from columns
+				that.foreignConstraints = {};
+				that.uniqueConstraints = [];
+				_.each( that.spec.columns, function( column ){
+					if ( column.db.unique ){
+						that.uniqueConstraints.push( column.name )
+					}
+					if ( column.db.foreign ){
+						that.foreignConstraints[ column.name ] = column.db.foreign;
+					}
+				});
+				that.checkUniqueConstraints( that.uniqueConstraints, function( uniqueConstraintsStatus ){
+					that.checkForeignConstraints( that.foreignConstraints, function( foreignConstraintsStatus ){
 						return cb({
 							table: true,
 							columns: columnsStatus,
-							indexes: indexesStatus,
-							constraints: constraintsStatus
+							uniqueIndexes: uniqueConstraintsStatus,
+							foreignIndexes: foreignConstraintsStatus
 						});
 					});
 				
@@ -60,7 +70,6 @@ function TableSync( db, tableSpec, cb ){
 		var that = this;
 		var colNames = _.pluck( this.spec.columns, 'name' );
 		this.check( function( status ){
-			console.log( status );
 			// create missing table
 			if ( ! status.table ){
 				that.createTable( function(){
@@ -150,38 +159,56 @@ function TableSync( db, tableSpec, cb ){
 					});
 					
 				}				
-				
 			}
-			if ( status.indexes ){
-				_.each( status.indexes.added, function( indexKey ){
-					var index = _.findWhere( that.spec.indexes, { name: indexKey });
+			if ( status.uniqueIndexes ){
+				_.each( status.uniqueIndexes.added, function( columnName ){
+					var indexKey = 'unique_' + columnName;
 					var query = 'ALTER TABLE `' + that.spec.name + '`'; 
-					query += index.hasOwnProperty( 'unique' ) && ! index.unique ? ' ADD ' : ' ADD UNIQUE ';
-					query += ' INDEX `' +indexKey+'` ( `' + index.column + '` )';
+					query += ' ADD UNIQUE INDEX `' +indexKey+'` ( `' + columnName + '` )';					
 					that.db.query( query, function( results ){
-						console.log( 'SYNC: Added index \'' + indexKey + '\' to \`' + that.spec.name + '.' + index.column + '\' because it had changed.' );
+						if ( results ){
+							console.log( 'SYNC: Added unique index \'' + indexKey + '\' to \`' + that.spec.name + '.' + columnName + '\'.' );
+						} else {
+							console.log( 'SYNC: Could NOT add unique index \'' + indexKey + '\' to \`' + that.spec.name + '.' + columnName + '\'. Maybe you already have duplicates?' );
+						}
 					});
 				});				
-				_.each( status.indexes.removed, function( indexKey ){
+				_.each( status.uniqueIndexes.removed, function( columnName ){
+					var indexKey = 'unique_' + columnName; 
 					var query = 'ALTER TABLE `' + that.spec.name + '`';
 					query += " DROP INDEX `" + indexKey + "`" ; 
 					that.db.query( query, function( results ){
-						console.log( 'SYNC: Dropped index \'' + indexKey + '\' from table \'' + that.spec.name + '\' because it was no longer in the spec.' );
+						if ( results ){
+							console.log( 'SYNC: Dropped index \'' + indexKey + '\' from table \'' + that.spec.name + '\' because it was no longer in the spec.' );
+						}
 					});
 				}); 
-				_.each( status.indexes.changed, function( indexKey ){
-					var query = 'ALTER TABLE `' + that.spec.name + '`';
-					query += " DROP INDEX `" + indexKey + "`" ; 
+			}
+			if ( status.constraints ){
+				var query = 'ALTER TABLE `' + that.spec.name + '`';
+				query += " DROP " + constraintType + " `fk_" + that.spec.name + "_" + columnName + "`" ; 
+				that.db.query( query, function( results ){
+					// handle added
+					query = 'ALTER TABLE `' + that.spec.name + '`'; 
+					query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
+					query += ' (`'+ columnName +'`)' ; 
+					query += ' REFERENCES `cloud_db`.`' + constraintReference.table + '` (`' + constraintReference.column + '`)';
+					that.db.query( query, function(results){
+						console.log( 'SYNC: added foreign key fk_'+that.spec.name+'_'+columnName + ' to ' + that.spec.name + '.' + columnName + ', referencing \'' + constraintReference.table + '.' + constraintReference.column + '\'' );
+					});				
+
+					//handle removed
+
+					// handle updated
+					query = 'ALTER TABLE `' + that.spec.name + '`'; 
+					query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
+					query += ' (`'+ columnName +'`)' ; 
+					query += ' REFERENCES `cloud_db`.`' + constraintReference.table + '` (`' + constraintReference.column + '`)';
 					that.db.query( query, function( results ){
-						var index = _.findWhere( that.spec.indexes, { name: indexKey });
-						var query = 'ALTER TABLE `' + that.spec.name + '`'; 
-						query += index.hasOwnProperty( 'unique' ) && ! index.unique ? ' ADD ' : ' ADD UNIQUE ';
-						query += ' INDEX `' +indexKey+'` ( `' + index.column + '` )';
-						that.db.query( query, function( results ){
-							console.log( 'SYNC: updated index \'' + indexKey + '\' on table \'' + that.spec.name + '\'' );
-						});
+						console.log( 'SYNC: updated foreign key fk_'+that.spec.name+'_'+columnName + ', now references \'' + constraintReference.table + '.' + constraintReference.column + '\'' );
 					});
-				}); 		
+				});
+				return;				
 			}
 			var all_good = true;
 			if ( status.table !== true 
@@ -335,35 +362,28 @@ TableSync.prototype.checkColumns = function( cb ){
 		}
 	} );	
 }
-TableSync.prototype.checkIndexes = function( cb ){
-	if ( ! this.spec.indexes ){
-		return cb( true )
-	}
+TableSync.prototype.checkUniqueConstraints = function( uniqueConstraints, cb ){
 	var that = this;
-	var query = 'SHOW INDEXES IN ' + this.spec.name ; 
-
+	var query = 'SHOW INDEXES IN ' + this.spec.name; 
+	query += ' WHERE Key_name != \'PRIMARY\''; 	// not primary
+	query += ' AND Non_unique = 0';	// and unique
 	var defaultIndex = {
-		Non_unique: 0,
 		Key_name: false,
 		Column_name: false
 	}
 	// reformat for easy comparison
-	var tableIndexes = _.map( this.spec.indexes, function( index ){
-		var formatted = _.clone( defaultIndex ); 
-		formatted.Non_unique = index.hasOwnProperty('unique') && ! index.unique ? 1 : 0;
-		formatted.Key_name = index.name;
-		formatted.Column_name = index.column;
+	var tableIndexes = _.map( uniqueConstraints, function( columnName ){
+		var formatted = {}; 
+		formatted.Key_name = 'unique_' + columnName;
+		formatted.Column_name = columnName;
 		return formatted;
 	}); 
 	// compare with indexes currently in DB
-	this.db.query( query, function( results ){
-		// remove the primary index (since that is assumed and unchangeable in Cloud_DB)
-		var dbIndexes = _.reject( results, function( dbIndex ){
-			return dbIndex.Key_name === 'PRIMARY' && dbIndex.Column_name === 'ID';  
-		});
+	this.db.query( query, function( dbIndexes ){
 		// filter all the indexes in the spec down to the ones that aren't in the db
-		var notInDb = [];
-		var differentFromDb = [];
+		var addedIndexes = [];
+		var removedIndexes = [];
+		var changedIndexes = [];
 		tableIndexes = _.each( tableIndexes, function( tableIndex ){
 			// if it doesn't refer to an existing column
 			if ( ! _.findWhere( that.spec.columns, { name: tableIndex.Column_name })){
@@ -371,34 +391,27 @@ TableSync.prototype.checkIndexes = function( cb ){
 			}
 			var foundIndex = _.findWhere( dbIndexes, { Key_name: tableIndex.Key_name }); 
 			if( foundIndex ){
-
-				if ( ! _.isEqual( tableIndex, _.pick( foundIndex, 'Key_name', 'Column_name', 'Non_unique' ) ) ){
-					differentFromDb.push( tableIndex );
-				}	
 				// remove the inspected item from dbIndexes
 				dbIndexes = _.reject( dbIndexes, function( dbIndex ){
 					return dbIndex.Key_name === tableIndex.Key_name 
-				});					
-				
+				});
 			} else {
-				notInDb.push( tableIndex );
+				addedIndexes.push( tableIndex );
 			}
 					
 		});
 
-		notInDb = _.map( notInDb, function( index ){
-			return index.Key_name; 
+		addedIndexes = _.map( addedIndexes, function( index ){
+			return index.Column_name; 
 		});
-		dbIndexes = _.map( dbIndexes, function( index ){
-			return index.Key_name; 
+		// any dbIndexes left are no longer present in the spec, and so should be removed
+		removedIndexes = _.map( dbIndexes, function( index ){
+			return index.Column_name; 
 		});	
-		differentFromDb = _.map( differentFromDb, function( index ){
-			return index.Key_name; 
-		});
+
 		var indexesStatus = {};
-		if ( notInDb.length > 0 ) indexesStatus.added = notInDb;
-		if ( notInDb.length > 0 ) indexesStatus.removed = dbIndexes;
-		if ( notInDb.length > 0 ) indexesStatus.changed = differentFromDb;
+		if ( addedIndexes.length > 0 ) indexesStatus.added = addedIndexes;
+		if ( removedIndexes.length > 0 ) indexesStatus.removed = removedIndexes;
 
 		if ( _.isEmpty( indexesStatus ) ){
 			return cb( true )
@@ -407,7 +420,7 @@ TableSync.prototype.checkIndexes = function( cb ){
 		}		
 	});
 }
-TableSync.prototype.checkConstraints = function( cb ){
+TableSync.prototype.checkForeignConstraints = function( foreignConstraints, cb ){
 	if ( ! this.spec.constraints ){
 		return cb( true )
 	}
@@ -432,82 +445,42 @@ TableSync.prototype.checkConstraints = function( cb ){
 				}
 			}
 		});
+		var addedConstraints = [];
+		var removedConstraints = [];
+		var updatedConstraints = [];
 		_.each( specConstraints, function( constraints, constraintType ){
 			_.each( constraints, function( constraintReference, columnName ){
 				if ( dbConstraints.hasOwnProperty( columnName ) ){
 					if ( dbConstraints[ columnName ].table === constraintReference.table ){
 						if ( dbConstraints[ columnName ].column === constraintReference.column ){
+							// identical property exists in DB, so no updated needed
 							return;
 						}
 					}
-					var query = 'ALTER TABLE `' + that.spec.name + '`';
-					query += " DROP " + constraintType + " `fk_" + that.spec.name + "_" + columnName + "`" ; 
-					that.db.query( query, function( results ){
-						query = 'ALTER TABLE `' + that.spec.name + '`'; 
-						query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
-						query += ' (`'+ columnName +'`)' ; 
-						query += ' REFERENCES `cloud_db`.`' + constraintReference.table + '` (`' + constraintReference.column + '`)';
-						that.db.query( query, function( results ){
-							console.log( 'SYNC: updated foreign key fk_'+that.spec.name+'_'+columnName + ', now references \'' + constraintReference.table + '.' + constraintReference.column + '\'' );
-						});
-					});
-					return;
+					// exists, but not identical, so add to updated								
+					updatedConstraints.push({ type: constraintType, column: columnName });
+					delete dbConstraints[ columnName ];					
 				} else {
-					// this query adds foreign keys
-					query = 'ALTER TABLE `' + that.spec.name + '`'; 
-					query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
-					query += ' (`'+ columnName +'`)' ; 
-					query += ' REFERENCES `cloud_db`.`' + constraintReference.table + '` (`' + constraintReference.column + '`)';
-					that.db.query( query, function(results){
-						console.log( query );
-						console.log( 'SYNC: added foreign key fk_'+that.spec.name+'_'+columnName + ' to ' + that.spec.name + '.' + columnName + ', referencing \'' + constraintReference.table + '.' + constraintReference.column + '\'' );
-					});
+					// foreign key does not exist, so add it.
+					addedConstraints.push({ type: constraintType, column: columnName });
 				}
 			});
-
 		});
-	// foreach( $this->constraints as $constraint_type => $constraints ){
-	// 		foreach( $constraints as $column_name => $reference ){
-	// 			$query = 'SELECT DISTINCT concat( \''.$this->name.'\', \'.\', \''. $column_name .'\' ) as \''.$constraint_type.'\',' ; 
-	// 			$query .= ' concat( \''.$reference['table'].'\', \'.\', \''. $reference['column'] .'\' ) as \'references\'' ;
-	// 			$query .= ' FROM';
-	// 			$query .= ' information_schema.key_column_usage'; 
-	// 			$query .= ' WHERE'; 
-	// 			$query .= ' \''.$reference['table'] .'\' is not NULL'; 
-	// 			if ( !isset( $db_table_constraints[ $column_name ] ) ){
-	// 				$query = 'ALTER TABLE `'. $this->name .'`'; 
-	// 				$query .= ' ADD CONSTRAINT fk_'.$this->name .'_' . $column_name ; 
-	// 				$query .= ' FOREIGN KEY (`'.$column_name.'`)' ; 
-	// 				$query .= ' REFERENCES `customercloud`.`'. $reference['table'] . '` (`'.$reference['column'] .'`)' ;
-	// 				$this->query( $query ); 
-	// 				$this->error( 'DB: added foreign key fk_'.$this->name.'_'. $column_name . ' to '.$this->name .'('.$column_name.'), referencing '. $reference['table'] .'( '.$reference['column']. ')' , 'notice' ); 												
-					
-	// 			} else {
-	// 				unset( $db_table_constraints[ $column_name ] ); 
-	// 			}
-	// 		}
-	// 	}		
-		var notInDb = [];		
-		// var differentFromDb = [];
-		// notInDb = _.map( notInDb, function( index ){
-		// 	return index.Key_name; 
-		// });
-		// dbIndexes = _.map( dbIndexes, function( index ){
-		// 	return index.Key_name; 
-		// });	
-		// differentFromDb = _.map( differentFromDb, function( index ){
-		// 	return index.Key_name; 
-		// });
-		// var constraintsStatus = {};
-		// if ( notInDb.length > 0 ) indexesStatus.added = notInDb;
-		// if ( notInDb.length > 0 ) indexesStatus.removed = dbIndexes;
-		// if ( notInDb.length > 0 ) indexesStatus.changed = differentFromDb;
+		// remaining dbConstraints need to be deleted 
+		_.each( dbConstraints, function( dbConstraint, columnName ){
+			removedConstraints.push({ type: 'foreign key', column: columnName });
+		});
+		
+		var constraintsStatus = {};
+		if ( addedConstraints.length > 0 ) constraintsStatus.added = addedConstraints;
+		if ( removedConstraints.length > 0 ) constraintsStatus.removed = removedConstraints;
+		if ( updatedConstraints.length > 0 ) constraintsStatus.changed = updatedConstraints;
 
-		// if ( _.isEmpty( indexesStatus ) ){
-		// 	return cb( true )
-		// } else {
-		// 	return cb( indexesStatus);
-		// }		
+		if ( _.isEmpty( constraintsStatus ) ){
+			return cb( true )
+		} else {
+			return cb( constraintsStatus );
+		}		
 	});
 		
 }
