@@ -23,7 +23,7 @@ Basically, you connect, add your tables, and then you have some very easy-to-use
 
 Setup
 -------
-#### 0. a) Install 'cloud_db' as module and b) require.
+#### 0. A) Install 'cloud_db' as module and B) require.
 
 ```js
 var db = require( 'cloud_db' );
