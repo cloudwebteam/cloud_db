@@ -9,6 +9,7 @@ var Table = function( db, tableSpec ){
 	this.logging = true;
 
 	_.extend( this.spec, tableSpec );
+	this.spec._columns = this.getColumns();
 	this.name = this.spec.name;
 	if ( ! this.name ){
 		this.log( 'You must, at a minumum, provide a table name' );
@@ -23,9 +24,9 @@ Table.prototype.spec = {
 		edit: true,
 	},	
 	columns: {},
-	indexes: {},
-	constraints: {},	
+	_columns: {}
 }
+Table.prototype.formattedSpec = {}
 Table.prototype.getColumns = function( columnsToReturn ){
 	if ( _.isArray( columnsToReturn ) && columnsToReturn.length > 0 ){
 		var filtered = [];
@@ -175,6 +176,7 @@ Table.prototype.get = function( args, next ){
 	var query = this._getQuerySelect( args );
 	query += this._getQueryWhere( args ); 
 	query += this._getQueryOrder( args ); 
+	console.log( query ); 
 	this.query( query, function( results ){
 		if ( ! results ){
 			next( false );
@@ -232,6 +234,7 @@ Table.prototype._getQueryWhere = function( args ){
 		return query_where;
 	}
 	var select_terms = [];
+	var that = this;
 	_.each( args, function( col_value, col_name ){
 		var select_term = ''; 
 		switch( col_name ){
@@ -251,14 +254,17 @@ Table.prototype._getQueryWhere = function( args ){
 					// the only business an object has being here is to request...
 					//... a subquery!
 					var table = false;
-					if ( this.constraints.hasOwnProperty( 'foreign key' ) && this.constraints[ 'foreign key' ].hasOwnProperty( col_name ) ){
-						table = this.constraints['foreign key'][ col_name ].table ; 
-						if ( ! table ){
-							this.log().note( 'You have a sub query that does not specify a table', 'notice' );
-							return;
-						}
-
-						select_term = '`' + col_name  + '` IN ( SELECT ID FROM `' + table + '`' + this._getQueryWhere( col_value ) + ' )'; 
+					var colData = _.findWhere( that.spec._columns, { name: col_name }); 
+					if ( colData && colData.db.hasOwnProperty('foreign') ){
+						var colForeignKey = colData.db.foreign; 
+					}
+					if ( colForeignKey ){
+						select_term = '`' + col_name  + '` IN ( \n';
+						select_term += 'SELECT ' + colForeignKey.column + ' FROM ' + colForeignKey.table ;
+						select_term += that._getQueryWhere( col_value ); 
+						select_term += ' )'; 
+					} else {
+						that.log( 'You have a sub query that does not specify a table', 'notice' );
 					}
 				} else if ( col_value || col_value === 0 ) {
 					select_term = '`' + col_name + '` = "' + col_value + '"'; 
