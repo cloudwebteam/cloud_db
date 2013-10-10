@@ -269,6 +269,7 @@ You can only access the query results through the callback.
 		// you can pass in an array, and it will retrieve all rows that match
 			// eg. id: [ 1,5, 31] will retrieve all posts with IDs 1,5, or 31
 			// eg. name: ['Joe', 'Sarah']
+		// you can pass in an object, and it will turn it into a subquery (see below)
 	id: {int},
 	col_name: {int/str/bool}, // false and null evaluate to 'NULL' in the database,
 	another_col_name: {int/str/bool},
@@ -282,6 +283,51 @@ You can only access the query results through the callback.
 	ORDERBY: {str},
 	GROUPBY: {str}
 }
+```
+
+####More about subqueries####
+- subqueries MUST match a foreign key that has been registered on the column. 
+- subqueries accept {getArgs} arguments (minus grouping/ordering/arranging)
+- will return the relevant column (the column registered in the foreign key constraint )
+
+**Example**
+
+So, if this is the table spec, with a foreign key
+```js
+name: 'transaction', 
+columns: {
+	...
+	user: {
+		db: {
+			type: 'int(11)',
+			foreign: {
+				table: 'Customer',
+				column: 'ID'
+			}
+		}
+	}
+	...
+}
+```
+
+To return all transactions executed by a Customer with the name 'Megan'
+```js
+var transactionTable = db.table( 'transaction' );
+transactionTable.get({
+	user: {
+		name: 'Megan'
+	}
+});
+```
+
+To return all debit transactions executed by a Customer with the name 'Megan', or 'Cody'
+```js
+transactionTable.get({
+	purchaseType: 'debit'
+	user: { // accepts {getArgs}
+		name: [ 'Megan', 'Cody' ] 
+	}
+});
 ```
 
 Full Example
