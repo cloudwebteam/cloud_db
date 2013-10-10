@@ -230,7 +230,7 @@ You can only access the query results through the callback.
 - `.get( {getArgs} )` // retrieves all entries that match the object (returns array of rows)
 - `.getOne( {getArgs} )` // retrieves the first of all entries that match (returns single row)
 - `.get( ID )` // retrieves a single row by ID (returns single row)
-
+- `.get( [ 1, 2, 3 ])` // retrieves rows by ID ( shorthand for { ID: [ 1, 2, 3 ] })
 #### .update()
 
 - `.update( ID, {updateArgs} );` // update one row by ID with updateArgs
@@ -262,15 +262,19 @@ You can only access the query results through the callback.
 #### {getArgs}
 ```js
 {
-	// KEYS: any column in the table spec, (and the addition of the ID field)
-	// VALUES: any value. Retrieved rows must match it exactly.
+	/* ==== SELECT WHERE ============================================= */
+	/* ---- KEYS: any column in the table spec, (and the addition of the ID field) -- */
+	/* ---- VALUES: any value. Retrieved rows must match it exactly. -- */
 		// except false and null both evaluate to null.
+		// you can pass in an array, and it will retrieve all rows that match
+			// eg. id: [ 1,5, 31] will retrieve all posts with IDs 1,5, or 31
+			// eg. name: ['Joe', 'Sarah']
 	id: {int},
 	col_name: {int/str/bool}, // false and null evaluate to 'NULL' in the database,
 	another_col_name: {int/str/bool},
 
-	// GROUPING/ORDERING/ARRANGING (is there a term for this?)
-	// all following can be either lower or uppercase
+	/* ====  GROUPING/ORDERING/ARRANGING (is there a term for this?) ====================== */
+	/* ---- all following can be either lower or uppercase ---*/
 	SELECT: {str/array}, // which column(s) to select from the row,
 	LIMIT: {int}, 
 	OFFSET: {int},
