@@ -69,7 +69,7 @@ Table.prototype._prepareArgs = function( args ){
 	if ( _.isNumber( args )){
 		return args;
 	}
-	var toUpperCase = [ 'select', 'limit', 'offset', 'order', 'orderby', 'groupby' ]
+	var toUpperCase = [ 'select', 'join', 'limit', 'offset', 'order', 'orderby', 'groupby' ]
 	var results = {}
 	for( key in args ){
 		if ( toUpperCase.indexOf( key ) !== -1 ){
@@ -175,7 +175,8 @@ Table.prototype.get = function( args, next ){
 	args = this._prepareArgs( args );	
 	var query = this._getQuerySelect( args );
 	query += this._getQueryWhere( args ); 
-	query += this._getQueryOrder( args ); 
+	query += this._getQueryJoin( args );
+	query += this._getQueryOrder( args ); 	
 	console.log( query ); 
 	this.query( query, function( results ){
 		if ( ! results ){
@@ -213,14 +214,44 @@ Table.prototype.getOne = function( args, next ){
 /* ---- query builder functions -------------------------------------- */
 Table.prototype._getQuerySelect = function( args ){
 	var query_select = '*';
-	if ( args.hasOwnProperty( 'select' )){
-		if ( _.isArray( args.select ) ){
-			query_select = args.select.join( ', ' );
-		} else {
-			query_select = args.select;
+	if ( args.hasOwnProperty( 'SELECT' )){
+		if ( _.isString( args.SELECT )){
+			query_select = args.SELECT; 
+		} else if ( args.SELECT.length !== undefined  ){
+			var select_terms = _.map( args.SELECT, function( term ){
+				if ( _.isString( term ) ) return '`' + term + '`'; 
+
+				if ( _.has( term, 'column' ) && _.has( term, 'as' ) ){
+					return  '`' + term.column + '` AS `' + term.as + '`'; 
+				} else {
+					console.log( 'NOTE: one of your select arguments is malformed.', term );
+				}
+			}); 
+			query_select = select_terms.join( ', ' );
+		} else if ( _.isObject( args.SELECT)){
+			var all_select_terms = [];
+			_.each( args.SELECT, function( tableSelect, tableName ){
+				var table_select_terms = [];
+				if ( _.isString( tableSelect ) ) table_select_terms.push( '`'+ tableName + '`.`' + term + '`' ); 
+
+				if ( _.isArray( tableSelect ) ){
+					var select_terms = _.map( tableSelect, function( col ){
+
+						if ( _.isString( col ) ) return '`'+ tableName + '`.`' + col + '`'; 
+
+						if ( _.has( col, 'column' ) && _.has( col, 'as' ) ){
+							return '`'+ tableName + '`.`' + col.column + '` AS `' + col.as + '`'; 
+						} else {
+							console.log( 'NOTE: one of your select arguments is malformed.', col );
+						}
+					}); 
+					table_select_terms = table_select_terms.concat( select_terms );
+				} 
+				all_select_terms = all_select_terms.concat( table_select_terms ); 
+			});
+			query_select = all_select_terms.join( ', ' );			
 		}
 	}
-
 	if ( query_select ){
 		return 'SELECT ' + query_select + ' FROM `' + this.name + '`' + "\r\n"; 
 	}
@@ -245,6 +276,7 @@ Table.prototype._getQueryWhere = function( args ){
 			case 'ORDER' : 
 			case 'ORDERBY' : 
 			case 'GROUPBY' : 
+			case 'JOIN' :
 				return;
 				break;
 			default:
@@ -285,6 +317,27 @@ Table.prototype._getQueryWhere = function( args ){
 	}
 	return '';
 	
+}
+Table.prototype._getQueryJoin = function( args ){
+	if ( ! _.has( args, 'JOIN' )) return;
+
+	var joinStatement = '';
+	// references a column with a foreign key
+	if ( _.isString( args.JOIN ) ){
+		var columnName = args.JOIN; 
+		var colData = _.findWhere( this.spec._columns, { name: columnName }); 
+		if ( colData && colData.db.hasOwnProperty('foreign') ){
+			var colForeignKey = colData.db.foreign; 
+			if ( colForeignKey ){
+				joinStatement += 'JOIN `' + colForeignKey.table + '` on `' + colForeignKey.table + '`.`' + colForeignKey.column + '` = `' + this.spec.name + '`.`' + columnName + '`'; 
+			} else {
+				this.log( 'JOIN references column ' + columnName + ' that does not have a foreign key', 'notice' );
+			}
+		} else {
+			this.log( 'JOIN references column \'' + columnName + '\' that does not exist', 'notice' );
+		}
+	}
+	return joinStatement; 
 }
 Table.prototype._getQueryOrder = function( args ){
 	var query_order = '' ; 
