@@ -81,7 +81,6 @@ Table.prototype._prepareArgs = function( args ){
 }
 Table.prototype.validate = function( toSave ){
 	var validation = this._validator.checkAgainstTable( toSave, this.getColumns() );
-	console.log( validation );
 	
 	if ( validation.passed ){
 		return validation.toSave ; 
@@ -150,8 +149,8 @@ Table.prototype.create = function( args, next ){
 			that.get( result.insertId, function( dbObject ){
 				next( dbObject );
 			});
-			
 		} else { 
+			that.log( 'Failed to insert row. Check MySQL error (probably related to foreign keys or unique indexes.)');
 			next( false ); 
 		} 
 	}); 
@@ -159,8 +158,18 @@ Table.prototype.create = function( args, next ){
 
 /* ==== GET ============================================= */
 Table.prototype.get = function( args, next ){	
+	if ( ! args ){
+		args = {}; 
+	} else if ( _.isFunction( args ) ){
+		next = args;
+		args = {};
+	} else if ( _.isArray( args )){
+		// array of IDs for args
+		args = { 
+			ID: args
+		}
+	}
 	next = next || noop;
-	if ( ! args ) args = {};
 
 	args = this._prepareArgs( args );	
 	var query = this._getQuerySelect( args );
