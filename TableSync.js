@@ -95,7 +95,7 @@ function TableSync( db, tableSpec, cb ){
 				_.each( status.columns.removed, function( colName ){
 					// check if its empty
 					var query = 'SELECT * FROM `' + that.spec.name + '`' ;
-					query += " WHERE `" + colName + "` IS NOT NULL" ; 
+					query += " WHERE `" + colName + "` <> \"\"" ; 
 					that.db.query( query, function( result ){
 						if ( result.length > 0 ){
 							console.log( 'SYNC: \'' + that.spec.name + '.' + colName + '\' is no longer needed, but was not deleted because it has data.')
@@ -127,7 +127,7 @@ function TableSync( db, tableSpec, cb ){
 
 					that.db.query( query, function( result ){
 						if ( result ){
-							console.log( 'Renamed column \'' + that.spec.name + '.' + renamedCol.from + '\' to \'' + that.spec.name + '.' + renamedCol.to + '\'' );
+							console.log( 'SYNC: Renamed column \'' + that.spec.name + '.' + renamedCol.from + '\' to \'' + that.spec.name + '.' + renamedCol.to + '\'' );
 						}
 					} );
 				});			
@@ -145,7 +145,7 @@ function TableSync( db, tableSpec, cb ){
 
 					that.db.query( query, function( result ){
 						if ( result ){
-							console.log( 'Updated column \'' + that.spec.name + '.' + colName + '\' because it had changed.' );
+							console.log( 'SYNC: Updated column \'' + that.spec.name + '.' + colName + '\' because it had changed.' );
 						}
 					} )
 				});
@@ -185,13 +185,13 @@ function TableSync( db, tableSpec, cb ){
 							var query = 'ALTER TABLE `' + that.spec.name + '`';
 							query += " DROP INDEX `" + reference.indexName + "`" ; 
 							that.db.query( query, function( results ){
-								console.log( 'SYNC: dropped index \'' + reference.name + '\' on column \'' + columnName + '\'' );
-							});								
+								console.log( 'SYNC: dropped index \'' + reference.indexName + '\' on column \'' + columnName + '\'' );
+							});
 						});
 					} else if ( reference.indexName ){
 						query += " DROP INDEX `" + reference.indexName + "`" ; 
 						that.db.query( query, function( results ){
-							console.log( 'SYNC: dropped index \'' + reference.name + '\' on column \'' + columnName + '\'' );
+							console.log( 'SYNC: dropped index \'' + reference.indexName + '\' on column \'' + columnName + '\'' );
 						});						
 					}
 				}); 		
@@ -200,7 +200,6 @@ function TableSync( db, tableSpec, cb ){
 					query += ' ADD CONSTRAINT FOREIGN KEY fk_' + that.spec.name + '_' + columnName;
 					query += ' (`'+ columnName +'`)' ; 
 					query += ' REFERENCES `cloud_db`.`' + reference.table + '` (`' + reference.column + '`)';
-					console.log( query );
 					that.db.query( query, function(results){
 						if ( results ){
 							console.log( 'SYNC: added foreign key fk_'+that.spec.name+'_'+columnName + ' to ' + that.spec.name + '.' + columnName + ', referencing \'' + reference.table + '.' + reference.column + '\'' );
@@ -269,11 +268,15 @@ TableSync.prototype.checkColumns = function( cb ){
 	that.db.query( 'SHOW FIELDS FROM `' + that.spec.name + '`', function( results ){
 		var dbColData = results;		
 		// arrange columns from DB into agreeable format
+		var idFound = false; 
 		_.each( dbColData, function( dbColumn, index ){
-			if( dbColumn.Field === 'ID' ) return;
-
+			if( dbColumn.Field === 'ID' ){
+				idFoundYet = true;
+				return;
+			}
+			var index = idFoundYet ? index - 1 : index;
 			dbColumns.push({
-				index: index,
+				index: index, 
 				name: dbColumn.Field,
 				type: dbColumn.Type,
 				'null': dbColumn.Null,
@@ -291,12 +294,17 @@ TableSync.prototype.checkColumns = function( cb ){
 			return ! _.findWhere( that.spec.columns, { name : value.name });
 		});
 
-		_.each( that.spec.columns, function( colSpec ){
+		_.each( that.spec.columns, function( colSpec, index ){
 			var dbColumn = _.findWhere( dbColumns, { name: colSpec.name });
-			
 			// column doesn't exist
-			if ( ! dbColumn ){			
-				columnsToAdd.push( colSpec ); // change format to easily compare with toRemove array
+			if ( ! dbColumn ){	
+				columnsToAdd.push({
+					index: index, 
+					name: colSpec.name,
+					type: colSpec.db.type,
+					'null': colSpec.db.null,
+					'default': colSpec.db.default 
+				});
 				return;
 			}		
 			var updateNeeded = false;		
@@ -327,8 +335,6 @@ TableSync.prototype.checkColumns = function( cb ){
 						} else if ( value === false ){
 							updateNeeded = true;
 						} else {
-							console.log( key, value, dbColumn[key] ); 
-
 							updateNeeded = true;
 						}				
 					}
@@ -342,9 +348,8 @@ TableSync.prototype.checkColumns = function( cb ){
 		// check for column renaming...
 		if ( columnsToRemove.length > 0 && columnsToAdd.length > 0 ){
 			columnsToRemove = _.map( columnsToRemove, function( dbColumn ){
-				var index = dbColumns
-				var colBefore = index - 1 > 0 ? dbColumns[ index -1 ].name : 'ID'; 
-				var colAfter = dbColumns.length > ( index + 1 ) ? dbColumns[index+1].name : false;
+				var colBefore = dbColumn.index > 0 ? dbColumns[ dbColumn.index -1 ].name : 'ID'; 
+				var colAfter = dbColumns.length > ( dbColumn.index + 1 ) ? dbColumns[dbColumn.index+1].name : false;
 				return {
 					index: dbColumn.index,
 					name: dbColumn.name,							
@@ -353,13 +358,13 @@ TableSync.prototype.checkColumns = function( cb ){
 					after: colAfter
 				}
 			}); 
-			columnsToAdd = _.map( columnsToAdd, function( colSpec ){
-
-				var colBefore = colSpec.index - 1 > 0 ? that.spec.columns[ colSpec.index -1 ].name : 'ID'; 
-				var colAfter = that.spec.columns.length > ( colSpec.index + 1 ) ? that.spec.columns[ colSpec.index + 1 ].name : false;
+			columnsToAdd = _.map( columnsToAdd, function( colToAdd ){
+				var colBefore = colToAdd.index > 0 ? that.spec.columns[ colToAdd.index -1 ].name : 'ID'; 
+				var colAfter = that.spec.columns.length > ( colToAdd.index + 1 ) ? that.spec.columns[ colToAdd.index + 1 ].name : false;
 				return {
-					name: colSpec.name,							
-					type: colSpec.db.type,
+					index: colToAdd.index,
+					name: colToAdd.name,							
+					type: colToAdd.type,
 					before: colBefore,
 					after: colAfter
 				}
@@ -371,9 +376,14 @@ TableSync.prototype.checkColumns = function( cb ){
 						return true;
 					}
 					if(
-						colToAdd.after === colToRemove.after 
-						&& colToAdd.before === colToRemove.before 
-						&& colToAdd.type === colToRemove.type 
+						// the column before, the column after, and the type are the same
+						( colToAdd.after === colToRemove.after 
+						  && colToAdd.before === colToRemove.before 
+						  && colToAdd.type === colToRemove.type ) 
+						||			
+						// the index and type are the same
+						( colToAdd.index === colToRemove.index 
+						  && colToAdd.type === colToRemove.type	)
 					){
 						columnsToRename.push({
 							from: colToRemove.name,
@@ -393,10 +403,11 @@ TableSync.prototype.checkColumns = function( cb ){
 		columnsToRemove = _.map( columnsToRemove, function( col ){
 			return col.name; 
 		});
+		console.log( columnsToRename );
 		var columnsStatus = {};
 		if ( columnsToAdd.length > 0 ) columnsStatus.added = columnsToAdd;
 		if ( columnsToRemove.length > 0 ) columnsStatus.removed = columnsToRemove;
-		if ( columnsToRename.length > 0 ) columnsStatus.renamed = columnsToRemove;
+		if ( columnsToRename.length > 0 ) columnsStatus.renamed = columnsToRename;
 		if ( columnsToChange.length > 0 ) columnsStatus.changed = columnsToChange;
 
 		if ( _.isEmpty( columnsStatus ) ){
