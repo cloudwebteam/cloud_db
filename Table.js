@@ -232,7 +232,7 @@ Table.prototype._getQuerySelect = function( args ){
 			var all_select_terms = [];
 			_.each( args.SELECT, function( tableSelect, tableName ){
 				var table_select_terms = [];
-				if ( _.isString( tableSelect ) ) table_select_terms.push( '`'+ tableName + '`.`' + term + '`' ); 
+				if ( _.isString( tableSelect ) ) table_select_terms.push( '`'+ tableName + '`.`' + tableSelect + '`' ); 
 
 				if ( _.isArray( tableSelect ) ){
 					var select_terms = _.map( tableSelect, function( col ){
@@ -246,7 +246,14 @@ Table.prototype._getQuerySelect = function( args ){
 						}
 					}); 
 					table_select_terms = table_select_terms.concat( select_terms );
-				} 
+				} else if ( _.isObject( tableSelect ) ){					
+					if ( _.has( tableSelect, 'column' ) && _.has( tableSelect, 'as' ) ){
+
+						table_select_terms.push(  '`'+ tableName + '`.`' + tableSelect.column + '` AS `' + tableSelect.as + '`' ); 
+					} else {
+						console.log( 'NOTE: one of your tables\' select arguments is malformed.', tableSelect );
+					}
+				}
 				all_select_terms = all_select_terms.concat( table_select_terms ); 
 			});
 			query_select = all_select_terms.join( ', ' );			
@@ -322,6 +329,7 @@ Table.prototype._getQueryJoin = function( args ){
 	if ( ! _.has( args, 'JOIN' )) return;
 
 	var joinStatement = '';
+	var joinType = _.has( args.JOIN, 'type' ) ? args.JOIN.type.toUpperCase() : 'INNER'; 
 	// references a column with a foreign key
 	if ( _.isString( args.JOIN ) ){
 		var columnName = args.JOIN; 
@@ -329,13 +337,29 @@ Table.prototype._getQueryJoin = function( args ){
 		if ( colData && colData.db.hasOwnProperty('foreign') ){
 			var colForeignKey = colData.db.foreign; 
 			if ( colForeignKey ){
-				joinStatement += 'JOIN `' + colForeignKey.table + '` on `' + colForeignKey.table + '`.`' + colForeignKey.column + '` = `' + this.spec.name + '`.`' + columnName + '`'; 
+				joinStatement += joinType + ' JOIN `' + colForeignKey.table + '` on `' + colForeignKey.table + '`.`' + colForeignKey.column + '` = `' + this.spec.name + '`.`' + columnName + '`'; 
 			} else {
 				this.log( 'JOIN references column ' + columnName + ' that does not have a foreign key', 'notice' );
 			}
 		} else {
 			this.log( 'JOIN references column \'' + columnName + '\' that does not exist', 'notice' );
 		}
+	} else {
+		if ( ! _.isObject( args.JOIN ) || ! ( _.has( args.JOIN, 'column' ) && _.has( args.JOIN, 'on' ) )){
+			this.log( 'JOIN argument is invalid. Need to be\n 1) a string referencing column name with a foreign key. \n 2) an object with at least \'column\' and \'on\' properties.', 'notice');
+			return;
+		}
+		var colData = _.findWhere( this.spec._columns, { name: args.JOIN.column }); 
+		if ( ! colData ){
+			this.log( 'JOIN argument column: \'' + args.JOIN.column +'\' does not exist in the spec.', 'notice' )
+			return;
+		}
+		if ( ! ( _.has( args.JOIN.on, 'table') && _.has( args.JOIN.on, 'column' ) ) ){
+			this.log( 'JOIN argument on must have properties \'table\' and \'column\'', 'notice' );
+			return;
+		}
+		var operator = _.has( args.JOIN, 'operator' ) ? args.JOIN.operator : '=';
+		joinStatement += joinType + ' JOIN `' + args.JOIN.on.table + '` on `' + args.JOIN.on.table + '`.`' + args.JOIN.on.column + '` ' + operator + ' `' + this.spec.name + '`.`' + args.JOIN.column + '`'; 
 	}
 	return joinStatement; 
 }
