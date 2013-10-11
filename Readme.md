@@ -260,6 +260,7 @@ You can only access the query results through the callback.
 ```
 
 #### {getArgs}
+
 ```js
 {
 	/* ==== SELECT WHERE ============================================= */
@@ -269,14 +270,15 @@ You can only access the query results through the callback.
 		// you can pass in an array, and it will retrieve all rows that match
 			// eg. id: [ 1,5, 31] will retrieve all posts with IDs 1,5, or 31
 			// eg. name: ['Joe', 'Sarah']
-		// you can pass in an object, and it will turn it into a subquery (see below)
+		// you can pass in an object, and BAM, you have a subquery (see below)
 	id: {int},
 	col_name: {int/str/bool}, // false and null evaluate to 'NULL' in the database,
 	another_col_name: {int/str/bool},
 
 	/* ====  GROUPING/ORDERING/ARRANGING (is there a term for this?) ====================== */
 	/* ---- all following can be either lower or uppercase ---*/
-	SELECT: {str/array}, // which column(s) to select from the row,
+	SELECT: {str/array/obj}, // default '*', which column(s) to select (see below)
+	JOIN: {str/obj}, // default false, which tables to join (see below)
 	LIMIT: {int}, 
 	OFFSET: {int},
 	ORDER: {str},
@@ -284,6 +286,10 @@ You can only access the query results through the callback.
 	GROUPBY: {str}
 }
 ```
+See more information on: 
+- [subqueries](#more-about-subqueries)
+- [SELECT](#select-arguments)
+- [JOIN](#join-arguments)
 
 ####More about subqueries####
 - subqueries MUST match a foreign key that has been registered on the column. 
@@ -330,6 +336,38 @@ transactionTable.get({
 });
 ```
 
+####SELECT Arguments
+
+- if not present, defaults to `*`; 
+- if string, it will simply be placed after 'SELECT '. Like `'SELECT ' + selectString + ' FROM...'`
+- if array, it should contain valid column names from the queried table. eg: `[ 'ID', 'phone', 'username' ]` ;
+	- NOTE: to 'SELECT column AS ...', you can substitute `{ column: 'ID', as: 'customString' }` for any/all of these array items 
+	- eg `[ { column: 'ID', as: 'mySpecialID' }, 'phone', 'username' ]`
+- if a join is present, should be an object, 
+	- there is a property for each table name
+	- each property uses the same arguments.
+
+Example of select with join
+```js
+select: {
+	User: ['ID', 'phone', { column: 'username', as: 'login'} ],
+	JoinedTableName: '*'
+}
+```
+
+####JOIN Arguments
+
+- if string, it should match the name of a column
+	- in your current table
+	- that has a foreign key
+	- eg: `join: 'user'` would JOIN the 'user' column\'s foreign key table when the foreign key column equals 'user'
+- if object, should have these properties:
+	- `column` : current table column,
+	- `on: { table: 'tableName', column: 'columnName' }`
+	- `type: 'inner'/'left'/'right'`, (optional) defaults to inner
+	- `operator: '='`, (optional), defaults to '=', but can be any comparison operator.
+
+```
 Full Example
 =========
 ```js
