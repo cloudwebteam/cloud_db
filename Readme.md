@@ -179,7 +179,16 @@ For each validation type, you can optionally specify a function to format/filter
 #### Validation and saving examples.
 
 **Example 1: Phone**
+```js
 
+Phone col spec
+```js
+phoneCol: {
+	...
+	validate: 'phone'
+	...
+}
+```
 ```js
 myTable.addValidationType( 'phone', function( value ){
 	var re = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
@@ -195,7 +204,15 @@ myTable.onSaveValidationType( 'phone', function( value ){
 
 **Example 2: Password w/ confirmation**
 
-We are assuming the password data has been submitted in this format:
+Password col spec
+```js
+passwordCol: {
+	...
+	validate: 'passwordConfirmation'
+	...
+}
+```
+We are assuming the password data has been submitted in this format (from a form, most likely):
 `{ password: 'myPassword1', confirmation: 'myPassword2' }`; 
 
 ```js
@@ -215,34 +232,33 @@ CRUD operations
 ----------
 All CRUD operations have been made as intuitive as possible. All possible uses are listed succintly below. Check out the [example](#full-example) section for more specifics.
 
-**Note:** The callback has been left out for clarity, but **all accept a callback function as the last argument** 
-
-You can only access the query results through the callback.
+**NOTE**: You can only access the query results through the callback.
 
 #### .create()
 
-- `table.create( {updateArgs} )` // boom, add a DB entry (no ID, please)
+- `table.create( {updateArgs} [, callback] )` // boom, add a DB entry (no ID, please)
 	- returns full row from database.
 
 #### .get()
 
-- `.get()` // retrieves all rows in table (returns array of rows)
-- `.get( {getArgs} )` // retrieves all entries that match the object (returns array of rows)
-- `.getOne( {getArgs} )` // retrieves the first of all entries that match (returns single row)
-- `.get( ID )` // retrieves a single row by ID (returns single row)
-- `.get( [ 1, 2, 3 ])` // retrieves rows by ID ( shorthand for { ID: [ 1, 2, 3 ] })
+- `.get( [callback] )` // retrieves all rows in table (returns array of rows)
+- `.get( {getArgs} [, callback] )` // retrieves all entries that match the object (returns array of rows)
+- `.getOne( {getArgs} [, callback] )` // retrieves the first of all entries that match (returns single row)
+- `.get( ID [, callback] )` // retrieves a single row by ID (returns single row)
+- `.get( [ 1, 2, 3 ] [, callback] )` // retrieves rows by ID ( shorthand for { ID: [ 1, 2, 3 ] })
+
 #### .update()
 
-- `.update( ID, {updateArgs} );` // update one row by ID with updateArgs
-- `.update( {updateArgs} );` // as long as ID exists in the first argument, it uses the rest as update arguments
+- `.update( ID, {updateArgs} [, callback] );` // update one row by ID with updateArgs
+- `.update( {updateArgs} [, callback] );` // as long as ID exists in the first argument, it uses the rest as update arguments
 	- so...you could retrieve a DB row, change something, and pass it in here, and it would update.
 	- Boom.
-- `.update( {getArgs}, {updateArgs} );` // update all db matching getArgs (no ID, obviously) with updateArgs
+- `.update( {getArgs}, {updateArgs} [, callback] );` // update all db matching getArgs (no ID, obviously) with updateArgs
 
 #### .delete()
 
-- `.delete( ID )` // delete row by ID
-- `.delete( {getArgs} )` // delete all rows that match the given parameters. 
+- `.delete( ID [, callback] )` // delete row by ID
+- `.delete( {getArgs} [, callback] )` // delete all rows that match the given parameters. 
 	- If object has ID, then only that row is deleted, so you can pass in a row to delete it.
 
 
