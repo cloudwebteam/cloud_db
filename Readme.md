@@ -356,12 +356,12 @@ transactionTable.get({
 
 - if not present, defaults to `*`; 
 - if string, it will simply be placed after 'SELECT '. Like `'SELECT ' + selectString + ' FROM...'`
-- if array, it should contain valid column names from the queried table. eg: `[ 'ID', 'phone', 'username' ]` ;
-	- NOTE: to 'SELECT column AS ...', you can substitute `{ column: 'ID', as: 'customString' }` for any/all of these array items 
-	- eg `[ { column: 'ID', as: 'mySpecialID' }, 'phone', 'username' ]`
-- if a join is present, should be an object, 
-	- there is a property for each table name
-	- each property uses the same arguments.
+- if array, it should contain valid column names from the queried table. eg: `[ 'ID', 'phone', 'username' ]`
+	- To 'SELECT column AS ...', you can substitute `{ column: 'ID', as: 'customString' }` for any/all of these array items 
+	- eg. `[ { column: 'ID', as: 'mySpecialID' }, 'phone', 'username' ]`
+- if a JOIN is present, SELECT should be an object, 
+	- one property for each table name
+	- each property accepts the same arguments as a normal SELECT (above).
 
 Example of select with join
 ```js
@@ -383,7 +383,17 @@ select: {
 	- `type: 'inner'/'left'/'right'`, (optional) defaults to inner
 	- `operator: '='`, (optional), defaults to '=', but can be any comparison operator.
 
+Example join
 ```
+JOIN: {
+	column: 'user',
+	on: {
+		table: 'User',
+		column: 'ID'
+	}
+}
+```
+
 Full Example
 =========
 ```js
