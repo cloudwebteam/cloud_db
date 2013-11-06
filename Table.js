@@ -177,7 +177,6 @@ Table.prototype.get = function( args, next ){
 	query += this._getQueryWhere( args ); 
 	query += this._getQueryJoin( args );
 	query += this._getQueryOrder( args ); 	
-	console.log( query ); 
 	this.query( query, function( results ){
 		if ( ! results ){
 			next( false );
